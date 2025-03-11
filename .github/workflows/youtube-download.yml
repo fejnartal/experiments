@@ -16,14 +16,17 @@ jobs:
 
       - name: Install dependencies
         run: |
+          echo "Starting dependency installation..."
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable xvfb
           wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
           sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -fy
           npm install puppeteer puppeteer-stream xvfb
+          echo "Dependencies installed successfully."
 
       - name: Download YouTube video
         run: |
+          echo "Creating download_video.js script..."
           cat << 'EOF' > download_video.js
           const fs = require('fs');
           const {executablePath} = require('puppeteer');
@@ -31,12 +34,14 @@ jobs:
           const Xvfb = require('xvfb');
 
           const downloadVideo = async (url) => {
+            console.log("Starting Xvfb...");
             const xvfb = new Xvfb({
               silent: true,
               xvfb_args: ['-screen', '0', '1920x1080x30', '-ac'],
             });
             xvfb.start();
 
+            console.log("Launching Puppeteer...");
             const browser = await launch({
               executablePath: executablePath(),
               defaultViewport: {
@@ -51,19 +56,29 @@ jobs:
                 '--ozone-override-screen-size=1080,1920',
               ],
             });
+            console.log("Puppeteer launched successfully.");
 
             const page = await browser.newPage();
+            console.log("Navigating to YouTube video: " + url);
             await page.goto(url);
+
+            console.log("Starting video stream...");
             const stream = await getStream(page, { audio: true, video: true });
             const file = fs.createWriteStream('./downloaded_video.mp4');
             stream.pipe(file);
 
+            console.log("Recording video...");
             await new Promise(resolve => setTimeout(resolve, 10000)); // Adjust duration
+            console.log("Recording finished.");
 
             stream.destroy();
             file.close();
+            console.log("Video saved successfully.");
+
             await browser.close();
+            console.log("Browser closed.");
             xvfb.stop();
+            console.log("Xvfb stopped.");
           };
 
           const url = process.argv[2];
@@ -72,8 +87,14 @@ jobs:
             process.exit(1);
           }
 
-          downloadVideo(url).catch(console.error);
+          console.log("Starting download process...");
+          downloadVideo(url).catch(err => {
+            console.error("Error during video download:", err);
+            process.exit(1);
+          });
           EOF
+          echo "download_video.js script created."
+          echo "Executing script..."
           node download_video.js "${{ github.event.inputs.youtube_url }}"
         env:
           DISPLAY: ':99'
