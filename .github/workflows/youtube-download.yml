@@ -64,10 +64,13 @@ jobs:
             console.log("Logging into YouTube...");
             await page.type("input[type='email']", process.env.YT_EMAIL);
             await page.click("#identifierNext");
-            await page.waitForTimeout(2000);
+            
+            // Use waitFor for a specific element to ensure the page loaded
+            await page.waitFor("input[type='password']");
+            
             await page.type("input[type='password']", process.env.YT_PASSWORD);
             await page.click("#passwordNext");
-            await page.waitForTimeout(5000);
+            await page.waitFor(".ytp-play-button"); // Waiting for the YouTube video player to be ready
             console.log("Login successful.");
 
             console.log("Navigating to YouTube video: " + url);
