@@ -69,11 +69,10 @@ jobs:
             await page.waitForSelector("input[type='password']");
 
             await page.type("input[type='password']", process.env.YT_PASSWORD);
-            await page.waitForSelector("#passwordNext");
-            await page.click("#passwordNext");
+            await page.keyboard.press('Enter');
 
             // Wait for the YouTube video player to be ready
-            await page.waitForSelector(".ytp-play-button");
+            // await page.waitForSelector(".ytp-play-button");
             console.log("Login successful.");
 
             console.log("Navigating to YouTube video: " + url);
