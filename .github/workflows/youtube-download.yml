@@ -66,20 +66,20 @@ jobs:
             await page.click("#identifierNext");
 
             // Wait for the password input to appear
-            await page.waitForSelector("input[type='password']", { visible: true });
+            await page.waitForSelector("input[type='password']");
 
             await page.type("input[type='password']", process.env.YT_PASSWORD);
             await page.click("#passwordNext");
 
             // Wait for the YouTube video player to be ready
-            await page.waitForSelector(".ytp-play-button", { visible: true });
+            await page.waitForSelector(".ytp-play-button");
             console.log("Login successful.");
 
             console.log("Navigating to YouTube video: " + url);
             await page.goto(url);
 
             // Wait for the video element to appear
-            await page.waitForSelector("video", { visible: true });
+            await page.waitForSelector("video");
 
             // Hide everything except the video element
             await page.evaluate(() => {
