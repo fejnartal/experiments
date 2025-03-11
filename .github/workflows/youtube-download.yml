@@ -18,11 +18,18 @@ jobs:
         run: |
           echo "Starting dependency installation..."
           sudo apt-get update
-          sudo apt-get install -y google-chrome-stable xvfb pulseaudio
+          sudo apt-get install -y google-chrome-stable xvfb pulseaudio pavucontrol
           wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
           sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -fy
           npm install puppeteer puppeteer-stream xvfb
           echo "Dependencies installed successfully."
+
+      - name: Set up PulseAudio
+        run: |
+          echo "Starting PulseAudio..."
+          pulseaudio --start
+          sudo apt-get install -y pulseaudio-utils
+          echo "PulseAudio started."
 
       - name: Download YouTube video
         run: |
@@ -54,7 +61,8 @@ jobs:
                 '--use-fake-device-for-media-stream',
                 '--enable-usermedia-screen-capturing',
                 '--allow-http-screen-capture',
-                '--autoplay-policy=no-user-gesture-required'
+                '--autoplay-policy=no-user-gesture-required',
+                '--use-gl=swiftshader'
               ],
             });
             console.log("Puppeteer launched successfully.");
@@ -81,15 +89,7 @@ jobs:
             // Wait for the video element to appear
             await page.waitForSelector("video");
 
-            // Hide everything except the video element
             await page.evaluate(() => {
-              const elementsToHide = document.body.children;
-              Array.from(elementsToHide).forEach(element => {
-                if (element.tagName.toLowerCase() !== 'video') {
-                  element.style.display = 'none';
-                }
-              });
-
               // Optionally, set the video element to fullscreen and make it take the full screen size
               const video = document.querySelector("video");
               if (video) {
