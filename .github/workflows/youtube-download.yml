@@ -1,0 +1,70 @@
+name: Download YouTube Video and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      youtube_url:
+        description: "URL del video de YouTube"
+        required: true
+        type: string
+
+jobs:
+  download-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Crear Dockerfile en línea
+        run: |
+          cat <<EOF > Dockerfile
+          FROM python:3.9-slim
+          RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+          RUN pip install yt-dlp
+          WORKDIR /app
+          COPY entrypoint.sh /entrypoint.sh
+          RUN chmod +x /entrypoint.sh
+          ENTRYPOINT ["/entrypoint.sh"]
+          EOF
+
+      - name: Crear script de descarga en línea
+        run: |
+          cat <<EOF > entrypoint.sh
+          #!/bin/bash
+          set -e
+          YOUTUBE_URL="\$1"
+          COOKIES_FILE="/app/cookies.txt"
+
+          echo "Iniciando descarga de: \$YOUTUBE_URL"
+
+          # Si existe el archivo de cookies, lo usa
+          if [ -f "\$COOKIES_FILE" ]; then
+              yt-dlp --cookies \$COOKIES_FILE -o "/app/video.%(ext)s" "\$YOUTUBE_URL"
+          else
+              yt-dlp -o "/app/video.%(ext)s" "\$YOUTUBE_URL"
+          fi
+          EOF
+
+      - name: Pasar credenciales seguras
+        run: |
+          if [ -n "${{ secrets.YT_COOKIES }}" ]; then
+            echo "${{ secrets.YT_COOKIES }}" > cookies.txt
+          fi
+
+      - name: Construir imagen Docker
+        run: docker build -t youtube-downloader .
+
+      - name: Ejecutar contenedor y descargar video
+        run: docker run --rm -v "$(pwd):/app" youtube-downloader "${{ inputs.youtube_url }}"
+
+      - name: Obtener el nombre del archivo descargado
+        id: get_filename
+        run: echo "filename=$(ls | grep 'video.')" >> $GITHUB_ENV
+
+      - name: Crear release y subir video
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_NAME=$(date +"%Y-%m-%d")
+          gh release create "$RELEASE_NAME" "$filename" --title "Video descargado el $RELEASE_NAME" --notes "Descarga automática desde YouTube"
