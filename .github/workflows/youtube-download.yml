@@ -15,62 +15,34 @@ jobs:
       - name: Checkout del repositorio
         uses: actions/checkout@v4
 
-      - name: Crear Dockerfile para entorno de grabación privilegiado
+      - name: Instalar dependencias del sistema y Node
         run: |
-          cat <<'EOF' > Dockerfile
-          FROM node:18-slim
-          # Instalar dependencias necesarias
-          RUN apt-get update && apt-get install -y \
-              wget \
-              gnupg \
-              xvfb \
-              ffmpeg \
-              pulseaudio \
-              fonts-liberation \
-              libasound2 \
-              libatk-bridge2.0-0 \
-              libnspr4 \
-              libnss3 \
-              libx11-xcb1 \
-              libxcomposite1 \
-              libxdamage1 \
-              libxrandr2 \
-              libgbm1 \
-              --no-install-recommends && rm -rf /var/lib/apt/lists/*
-          # Instalar Google Chrome stable
-          RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          RUN apt install -y ./google-chrome-stable_current_amd64.deb
-          # Instalar las librerías de Node necesarias (incluyendo puppeteer-stream y plugins)
-          RUN npm install -g puppeteer puppeteer-stream puppeteer-extra puppeteer-extra-plugin-stealth
-          WORKDIR /app
-          # El script de grabación se copiará (o se monta) en /app/record.js
-          CMD ["node", "record.js"]
-          EOF
-
-      - name: Construir imagen Docker
-        run: docker build -t recorder:latest .
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg xvfb wget
+          # Instalar Google Chrome stable (usamos el paquete .deb)
+          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt install -y ./google-chrome-stable_current_amd64.deb
+          rm google-chrome-stable_current_amd64.deb
+          # Inicializamos un proyecto Node y instalamos Puppeteer
+          npm init -y
+          npm install puppeteer
 
       - name: Crear script de grabación (record.js)
         run: |
           cat <<'EOF' > record.js
-          const puppeteerStream = require('puppeteer-stream');
-          const puppeteer = require('puppeteer-extra');
-          const stealthPlugin = require('puppeteer-extra-plugin-stealth');
+          const puppeteer = require('puppeteer');
           const fs = require('fs');
-          puppeteer.use(stealthPlugin());
           
           (async () => {
-            // Usamos el método launch de puppeteer-stream según la documentación
-            const browser = await puppeteerStream.launch({
-              headless: true,
+            // Lanzamos Chrome en modo no headless sobre Xvfb y con flags para capturar pantalla sin diálogo
+            const browser = await puppeteer.launch({
+              headless: false,
               args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--enable-usermedia-screen_capturing',
-                '--allow-http-screen-capture',
                 '--use-fake-ui-for-media-stream',
-                '--use-fake-device-for-media-stream',
-                '--autoplay-policy=no-user-gesture-required'
+                '--auto-select-desktop-capture-source=Entire screen',
+                '--window-size=1280,720'
               ],
               defaultViewport: { width: 1280, height: 720 },
               executablePath: '/usr/bin/google-chrome-stable'
@@ -78,28 +50,43 @@ jobs:
             const page = await browser.newPage();
             console.log("Navegando a YouTube...");
             await page.goto(process.env.YOUTUBE_URL, { waitUntil: 'networkidle2' });
-            console.log("Esperando que cargue el elemento <video>...");
+            // Esperamos a que se cargue algún elemento <video>
+            console.log("Esperando que aparezca el elemento <video>...");
             await page.waitForSelector('video', { timeout: 60000 });
-            console.log("Reproduciendo video...");
-            await page.evaluate(() => {
-              const video = document.querySelector('video');
-              video.play();
-              video.volume = 1.0;
+            // Inyectamos código para usar getDisplayMedia y MediaRecorder
+            const recordedBase64 = await page.evaluate(async () => {
+              // Solicita captura de pantalla (del propio navegador) usando getDisplayMedia
+              const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+              const options = { mimeType: 'video/webm;codecs=vp9,opus' };
+              const mediaRecorder = new MediaRecorder(stream, options);
+              const chunks = [];
+              mediaRecorder.ondataavailable = event => {
+                if (event.data && event.data.size > 0) {
+                  chunks.push(event.data);
+                }
+              };
+              mediaRecorder.start();
+              // Graba durante 60 segundos
+              await new Promise(resolve => setTimeout(resolve, 60000));
+              await new Promise(resolve => {
+                mediaRecorder.onstop = resolve;
+                mediaRecorder.stop();
+              });
+              const blob = new Blob(chunks, { type: 'video/webm' });
+              // Convierte el blob a base64
+              return await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  // reader.result es "data:<mime>;base64,...", separamos la parte base64
+                  resolve(reader.result.split(',')[1]);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
             });
-            console.log("Esperando que el video empiece a reproducirse...");
-            await page.waitForFunction(() => {
-              const video = document.querySelector('video');
-              return video && !video.paused && video.currentTime > 0;
-            }, { timeout: 60000 });
-            console.log("Iniciando grabación...");
-            // Inicia la captura del stream (audio y video)
-            const stream = await puppeteerStream.start(page, { audio: true, video: true });
-            const out = fs.createWriteStream('video.webm');
-            stream.pipe(out);
-            // Graba durante 60 segundos
-            await new Promise(resolve => setTimeout(resolve, 60000));
-            console.log("Finalizando grabación...");
-            stream.destroy();
+            // Escribimos el archivo en disco
+            fs.writeFileSync('video.webm', Buffer.from(recordedBase64, 'base64'));
+            console.log("Grabación completada: video.webm creado");
             await browser.close();
           })().catch(err => {
             console.error(err);
@@ -107,20 +94,25 @@ jobs:
           });
           EOF
 
-      - name: Ejecutar contenedor de grabación en modo privileged
+      - name: Iniciar Xvfb
+        run: |
+          # Iniciamos Xvfb para proporcionar entorno gráfico (puerto :99)
+          Xvfb :99 -screen 0 1280x720x24 -ac &
+          # Establecemos la variable DISPLAY para que Chrome la use
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+
+      - name: Ejecutar el script de grabación
         env:
           YOUTUBE_URL: ${{ inputs.youtube_url }}
-        run: |
-          # Ejecutamos el contenedor con --privileged y montamos el directorio actual para recoger el video
-          docker run --rm --privileged -v "$(pwd):/app" -e YOUTUBE_URL="$YOUTUBE_URL" recorder:latest
+        run: node record.js
 
       - name: Convertir video a MP4 con FFmpeg
         run: |
           ffmpeg -i video.webm -vf "scale=1280:720:flags=lanczos" -c:v libx264 -preset slow -crf 18 -c:a aac -b:a 192k video_final.mp4
 
-      - name: Crear release y subir video a GitHub
+      - name: Crear release y subir video
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RELEASE_NAME=$(date +"%Y-%m-%d")
-          gh release create "$RELEASE_NAME" "video_final.mp4" --title "Video grabado el $RELEASE_NAME" --notes "Grabación automática desde YouTube usando un contenedor privilegiado"
+          gh release create "$RELEASE_NAME" "video_final.mp4" --title "Video grabado el $RELEASE_NAME" --notes "Video descargado (grabado vía getDisplayMedia/MediaRecorder) desde YouTube"
