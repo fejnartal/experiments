@@ -66,7 +66,7 @@ jobs:
             console.log("Puppeteer launched successfully.");
 
             const page = await browser.newPage();
-            await page.goto('https://accounts.google.com/signin');
+            await page.goto('https://accounts.google.com/signin', {'timeout': 10000, 'waitUntil':'load'});
             console.log("Logging into YouTube...");
             await page.type("input[type='email']", process.env.YT_EMAIL);
             await page.click("#identifierNext");
