@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       youtube_url:
-        description: "URL del video de YouTube"
+        description: "URL del video de YouTube a grabar"
         required: true
         type: string
 
@@ -15,41 +15,53 @@ jobs:
       - name: Checkout del repositorio
         uses: actions/checkout@v4
 
-      - name: Instalar dependencias necesarias
+      - name: Crear Dockerfile para entorno de grabación privilegiado
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            wget \
-            gnupg \
-            fonts-ipafont-gothic \
-            fonts-wqy-zenhei \
-            fonts-thai-tlwg \
-            fonts-kacst \
-            fonts-freefont-ttf \
-            libxss1 \
-            pulseaudio \
-            xvfb \
-            google-chrome-stable \
-            ffmpeg \
-            --no-install-recommends
-          
-          # Instalar dependencias Node (incluye puppeteer-stream y plugins)
-          npm install puppeteer-stream puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
+          cat <<'EOF' > Dockerfile
+          FROM node:18-slim
+          # Instalar dependencias necesarias
+          RUN apt-get update && apt-get install -y \
+              wget \
+              gnupg \
+              xvfb \
+              ffmpeg \
+              pulseaudio \
+              fonts-liberation \
+              libasound2 \
+              libatk-bridge2.0-0 \
+              libnspr4 \
+              libnss3 \
+              libx11-xcb1 \
+              libxcomposite1 \
+              libxdamage1 \
+              libxrandr2 \
+              libgbm1 \
+              --no-install-recommends && rm -rf /var/lib/apt/lists/*
+          # Instalar Google Chrome stable
+          RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - && \
+              echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list && \
+              apt-get update && apt-get install -y google-chrome-stable && rm -rf /var/lib/apt/lists/*
+          # Instalar las librerías de Node necesarias (incluyendo puppeteer-stream y plugins)
+          RUN npm install -g puppeteer puppeteer-stream puppeteer-extra puppeteer-extra-plugin-stealth
+          WORKDIR /app
+          # El script de grabación se copiará (o se monta) en /app/record.js
+          CMD ["node", "record.js"]
+          EOF
 
-      - name: Iniciar servidor X virtual (Xvfb)
-        run: |
-          Xvfb :99 -screen 0 1280x720x24 -ac &
-          echo "DISPLAY=:99" >> $GITHUB_ENV
+      - name: Construir imagen Docker
+        run: docker build -t recorder:latest .
 
-      - name: Grabar video desde YouTube usando puppeteer-stream
-        env:
-          YOUTUBE_URL: ${{ inputs.youtube_url }}
+      - name: Crear script de grabación (record.js)
         run: |
           cat <<'EOF' > record.js
           const puppeteerStream = require('puppeteer-stream');
+          const puppeteer = require('puppeteer-extra');
+          const stealthPlugin = require('puppeteer-extra-plugin-stealth');
           const fs = require('fs');
+          puppeteer.use(stealthPlugin());
+          
           (async () => {
-            // Usamos el método launch de puppeteer-stream
+            // Usamos el método launch de puppeteer-stream según la documentación
             const browser = await puppeteerStream.launch({
               headless: true,
               args: [
@@ -61,51 +73,55 @@ jobs:
                 '--use-fake-device-for-media-stream',
                 '--autoplay-policy=no-user-gesture-required'
               ],
-              defaultViewport: null,
+              defaultViewport: { width: 1280, height: 720 },
               executablePath: '/usr/bin/google-chrome-stable'
             });
             const page = await browser.newPage();
-            console.log("Cargando YouTube...");
+            console.log("Navegando a YouTube...");
             await page.goto(process.env.YOUTUBE_URL, { waitUntil: 'networkidle2' });
-            console.log("Esperando que el video cargue...");
+            console.log("Esperando que cargue el elemento <video>...");
             await page.waitForSelector('video', { timeout: 60000 });
-            
-            // Inicia la reproducción del video
+            console.log("Reproduciendo video...");
             await page.evaluate(() => {
               const video = document.querySelector('video');
               video.play();
               video.volume = 1.0;
             });
-            
             console.log("Esperando que el video empiece a reproducirse...");
             await page.waitForFunction(() => {
               const video = document.querySelector('video');
               return video && !video.paused && video.currentTime > 0;
             }, { timeout: 60000 });
-            
-            console.log("Iniciando grabación con puppeteer-stream...");
+            console.log("Iniciando grabación...");
             // Inicia la captura del stream (audio y video)
             const stream = await puppeteerStream.start(page, { audio: true, video: true });
             const out = fs.createWriteStream('video.webm');
             stream.pipe(out);
-            
-            console.log("Grabando durante 60 segundos...");
+            // Graba durante 60 segundos
             await new Promise(resolve => setTimeout(resolve, 60000));
-            
             console.log("Finalizando grabación...");
             stream.destroy();
             await browser.close();
-          })();
+          })().catch(err => {
+            console.error(err);
+            process.exit(1);
+          });
           EOF
-          node record.js
+
+      - name: Ejecutar contenedor de grabación en modo privileged
+        env:
+          YOUTUBE_URL: ${{ inputs.youtube_url }}
+        run: |
+          # Ejecutamos el contenedor con --privileged y montamos el directorio actual para recoger el video
+          docker run --rm --privileged -v "$(pwd):/app" -e YOUTUBE_URL="$YOUTUBE_URL" recorder:latest
 
       - name: Convertir video a MP4 con FFmpeg
         run: |
           ffmpeg -i video.webm -vf "scale=1280:720:flags=lanczos" -c:v libx264 -preset slow -crf 18 -c:a aac -b:a 192k video_final.mp4
 
-      - name: Subir video como Release en GitHub
+      - name: Crear release y subir video a GitHub
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RELEASE_NAME=$(date +"%Y-%m-%d")
-          gh release create "$RELEASE_NAME" "video_final.mp4" --title "Video grabado el $RELEASE_NAME" --notes "Grabación automática desde YouTube"
+          gh release create "$RELEASE_NAME" "video_final.mp4" --title "Video grabado el $RELEASE_NAME" --notes "Grabación automática desde YouTube usando un contenedor privilegiado"
