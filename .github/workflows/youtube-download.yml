@@ -68,19 +68,27 @@ jobs:
               console.log("Esperando a que el video cargue...");
               await page.waitForSelector("video", { timeout: 60000 });
 
-              // Asegurar que el video está en máxima calidad
+              // Asegurar que el video está en máxima calidad y reproducirlo
               await page.evaluate(() => {
                   let video = document.querySelector("video");
                   video.play();
                   video.volume = 1.0;
               });
 
+              // Esperamos a que el video comience a reproducirse (no solo cargarse)
+              console.log("Esperando a que el video empiece a reproducirse...");
+              await page.waitForFunction(() => {
+                  const video = document.querySelector('video');
+                  return video && !video.paused && video.currentTime > 0;
+              }, { timeout: 60000 });
+
               console.log("Iniciando grabación con FFmpeg...");
               const ffmpegCommand = 'ffmpeg -y -f x11grab -r 30 -s 1280x720 -i :99.0 -f pulse -ac 2 -i default -c:v libx264 -preset ultrafast -crf 18 -c:a aac -b:a 192k video.mp4';
               const recording = exec(ffmpegCommand);
 
+              // Usamos waitFor para esperar un tiempo específico (60s)
               console.log("Grabando durante 60 segundos...");
-              await page.waitForTimeout(60000); // Graba 60s (ajustable)
+              await page.waitFor(() => new Promise(resolve => setTimeout(resolve, 60000))); // Esperar 60s
 
               console.log("Finalizando grabación...");
               recording.kill();
