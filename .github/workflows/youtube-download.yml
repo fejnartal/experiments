@@ -51,17 +51,16 @@ jobs:
             console.log("Launching Puppeteer...");
             const browser = await launch({
               executablePath: executablePath(),
-              defaultViewport: null,
-              headless: false,
+              defaultViewport: {
+                width: 1080,
+                height: 1920,
+              },
               args: [
+                '--headless=new',
                 '--no-sandbox',
+                '--window-size=1080,1920',
                 '--disable-setuid-sandbox',
-                '--start-fullscreen',
-                '--use-fake-ui-for-media-stream',
-                '--use-fake-device-for-media-stream',
-                '--enable-usermedia-screen-capturing',
-                '--allow-http-screen-capture',
-                '--autoplay-policy=no-user-gesture-required',
+                '--ozone-override-screen-size=1080,1920',
               ],
             });
             console.log("Puppeteer launched successfully.");
