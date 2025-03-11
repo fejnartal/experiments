@@ -83,7 +83,7 @@ jobs:
             console.log("Login successful.");
 
             console.log("Navigating to YouTube video: " + url);
-            await page.goto(url);
+            await page.goto(url, {'timeout': 10000, 'waitUntil':'load'});
 
             // Wait for the video element to appear
             await page.waitForSelector("video");
