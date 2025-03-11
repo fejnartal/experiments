@@ -1,85 +1,88 @@
-name: Descargar y subir vídeo de YouTube
+name: Download YouTube Video
 
 on:
   workflow_dispatch:
     inputs:
-      url:
-        description: 'URL del vídeo de YouTube'
+      youtube_url:
+        description: 'URL of the YouTube video to download'
         required: true
-        type: string
 
 jobs:
-  download_and_upload:
-    runs-on: windows-latest
+  download_and_release:
+    runs-on: ubuntu-latest
     steps:
-      # Paso 1: Usar el cache para instalar Node.js
-      - name: Cache Node.js dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.npm
-            node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      # Paso 2: Instalar Node.js
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '16'
-
-      # Paso 3: Clonar el repositorio
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Paso 4: Instalar dependencias
       - name: Install dependencies
         run: |
-          npm install puppeteer puppeteer-stream
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable xvfb
+          npm install puppeteer-stream xvfb
 
-      # Paso 5: Crear el script `downloadVideo.js` directamente en el runner
-      - name: Crear el script de descarga
+      - name: Download YouTube video
         run: |
-          echo "const puppeteer = require('puppeteer');" > downloadVideo.js
-          echo "const fs = require('fs');" >> downloadVideo.js
-          echo "const path = require('path');" >> downloadVideo.js
-          echo "const puppeteerStream = require('puppeteer-stream');" >> downloadVideo.js
-          echo "" >> downloadVideo.js
-          echo "async function downloadVideo(url, outputDir) {" >> downloadVideo.js
-          echo "  // Crear un VideoStream y lanzar la captura" >> downloadVideo.js
-          echo "  const videoStream = await puppeteerStream.launch(page, { video: { width: 1920, height: 1080, frameRate: 30 } });" >> downloadVideo.js
-          echo "  const filePath = path.join(outputDir, 'video_' + Date.now() + '.mp4');" >> downloadVideo.js
-          echo "  const fileStream = fs.createWriteStream(filePath);" >> downloadVideo.js
-          echo "  videoStream.pipe(fileStream);" >> downloadVideo.js
-          echo "" >> downloadVideo.js
-          echo "  fileStream.on('finish', () => {" >> downloadVideo.js
-          echo "    console.log('Vídeo descargado a ' + filePath);" >> downloadVideo.js
-          echo "    browser.close();" >> downloadVideo.js
-          echo "  });" >> downloadVideo.js
-          echo "}" >> downloadVideo.js
-          echo "" >> downloadVideo.js
-          echo "const url = process.argv[2];" >> downloadVideo.js
-          echo "const outputDir = process.argv[3];" >> downloadVideo.js
-          echo "" >> downloadVideo.js
-          echo "downloadVideo(url, outputDir);" >> downloadVideo.js
+          cat << 'EOF' > download_video.js
+          const fs = require('fs');
+          const { launch } = require('puppeteer-stream');
+          const Xvfb = require('xvfb');
 
-      # Paso 6: Descargar el vídeo de YouTube
-      - name: Descargar el vídeo usando puppeteer-stream
-        run: |
-          node downloadVideo.js ${{ github.event.inputs.url }} ${{ runner.temp }}
+          const downloadVideo = async (url) => {
+            const xvfb = new Xvfb({
+              silent: true,
+              xvfb_args: ['-screen', '0', '1920x1080x30', '-ac'],
+            });
+            xvfb.start();
 
-      # Paso 7: Crear un archivo con la fecha de ejecución
-      - name: Generar nombre del archivo
-        id: timestamp
-        run: |
-          echo "TIMESTAMP=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_ENV
-          echo "video_file=${{ runner.temp }}/video_${{ env.TIMESTAMP }}.mp4" >> $GITHUB_ENV
+            const browser = await launch({
+              executablePath: 'google-chrome',
+              headless: true,
+              args: ['--no-sandbox'],
+            });
 
-      # Paso 8: Subir el vídeo como una release
-      - name: Upload video as release asset
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ${{ env.video_file }}
+            const page = await browser.newPage();
+            const stream = await getStream(page, { audio: true, video: true });
+            const file = fs.createWriteStream('./downloaded_video.mp4');
+            stream.pipe(file);
+
+            await page.goto(url);
+            await new Promise(resolve => setTimeout(resolve, 10000)); // Adjust duration
+
+            stream.destroy();
+            file.close();
+            await browser.close();
+            xvfb.stop();
+          };
+
+          const url = process.argv[2];
+          if (!url) {
+            console.error('Please provide a YouTube URL as an argument.');
+            process.exit(1);
+          }
+
+          downloadVideo(url).catch(console.error);
+          EOF
+          node download_video.js "${{ github.event.inputs.youtube_url }}"
+        env:
+          DISPLAY: ':99'
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: 'youtube-video-${{ github.run_id }}'
+          release_name: 'YouTube Video Download ${{ github.run_id }}'
+          draft: false
+          prerelease: false
+
+      - name: Upload video to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: './downloaded_video.mp4'
+          asset_name: 'downloaded_video.mp4'
+          asset_content_type: 'video/mp4'
