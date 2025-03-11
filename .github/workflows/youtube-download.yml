@@ -76,7 +76,7 @@ jobs:
               await page.waitForSelector("video", { timeout: 60000 });
 
               // Inicia la captura de audio y video con puppeteer-stream
-              const { stream, video } = await puppeteerStream(page);
+              const { stream, video } = await puppeteerStream.stream(page);
 
               // Inicia la reproducción del video
               await page.evaluate(() => {
