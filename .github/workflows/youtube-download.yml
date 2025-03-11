@@ -18,25 +18,18 @@ jobs:
         run: |
           echo "Starting dependency installation..."
           sudo apt-get update
-          sudo apt-get install -y google-chrome-stable xvfb pulseaudio pavucontrol
+          sudo apt-get install -y google-chrome-stable xvfb
           wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
           sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -fy
           npm install puppeteer puppeteer-stream xvfb
           echo "Dependencies installed successfully."
-
-      - name: Set up PulseAudio
-        run: |
-          echo "Starting PulseAudio..."
-          pulseaudio --start
-          sudo apt-get install -y pulseaudio-utils
-          echo "PulseAudio started."
 
       - name: Download YouTube video
         run: |
           echo "Creating download_video.js script..."
           cat << 'EOF' > download_video.js
           const fs = require('fs');
-          const { executablePath } = require('puppeteer');
+          const {executablePath} = require('puppeteer');
           const { launch, getStream } = require('puppeteer-stream');
           const Xvfb = require('xvfb');
 
@@ -51,76 +44,32 @@ jobs:
             console.log("Launching Puppeteer...");
             const browser = await launch({
               executablePath: executablePath(),
-              headless: false,
               defaultViewport: {
                 width: 1080,
                 height: 1920,
               },
               args: [
+                '--headless=new',
                 '--no-sandbox',
+                '--window-size=1080,1920',
                 '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--disable-gpu',
-                '--disable-software-rasterizer',
-            ],
-            protocolTimeout: 60000, // 60 seconds
-            timeout: 60000, // 60 seconds
+                '--ozone-override-screen-size=1080,1920',
+              ],
             });
             console.log("Puppeteer launched successfully.");
 
             const page = await browser.newPage();
-            await page.goto('https://accounts.google.com/signin', {'timeout': 10000, 'waitUntil':'load'});
-            console.log("Logging into YouTube...");
-            await page.type("input[type='email']", process.env.YT_EMAIL);
-            await page.click("#identifierNext");
-
-            // Wait for the password input to appear
-            await page.waitForSelector("input[type='password']");
-
-            await page.type("input[type='password']", process.env.YT_PASSWORD);
-            await page.keyboard.press('Enter');
-
-            // Wait for the YouTube video player to be ready
-            // await page.waitForSelector(".ytp-play-button");
-            console.log("Login successful.");
-
             console.log("Navigating to YouTube video: " + url);
-            await page.goto(url, {'timeout': 10000, 'waitUntil':'load'});
+            await page.goto(url);
 
-            // Wait for the video element to appear
-            await page.waitForSelector("video");
-
-            await page.evaluate(() => {
-              // Optionally, set the video element to fullscreen and make it take the full screen size
-              const video = document.querySelector("video");
-              if (video) {
-                video.style.position = 'absolute';
-                video.style.top = '0';
-                video.style.left = '0';
-                video.style.width = '100vw'; // Full screen width
-                video.style.height = '100vh'; // Full screen height
-                video.play();
-                video.requestFullscreen();
-                video.playbackQuality = 'hd1080'; // Ensure 1080p if possible
-              }
-            });
-
-            console.log("Starting video and audio stream...");
-            const stream = await getStream(page, { video: true, audio: true });
+            console.log("Starting video stream...");
+            const stream = await getStream(page, { audio: true, video: true });
             const file = fs.createWriteStream('./downloaded_video.mp4');
             stream.pipe(file);
 
-            // Wait for the video to end
-            await page.evaluate(() => {
-              return new Promise((resolve) => {
-                const video = document.querySelector("video");
-                video.addEventListener("ended", resolve);
-              });
-            });
-            console.log("Video playback finished.");
+            console.log("Recording video...");
+            await new Promise(resolve => setTimeout(resolve, 10000)); // Adjust duration
+            console.log("Recording finished.");
 
             stream.destroy();
             file.on('finish', async () => {
@@ -151,8 +100,6 @@ jobs:
           node download_video.js "${{ github.event.inputs.youtube_url }}"
         env:
           DISPLAY: ':99'
-          YT_EMAIL: ${{ secrets.YT_EMAIL }}
-          YT_PASSWORD: ${{ secrets.YT_PASSWORD }}
 
       - name: Create GitHub Release
         id: create_release
