@@ -64,22 +64,25 @@ jobs:
             console.log("Logging into YouTube...");
             await page.type("input[type='email']", process.env.YT_EMAIL);
             await page.click("#identifierNext");
-            
-            // Use waitFor for a specific element to ensure the page loaded
-            await page.waitFor("input[type='password']");
-            
+
+            // Wait for the password input to appear
+            await page.waitForSelector("input[type='password']", { visible: true });
+
             await page.type("input[type='password']", process.env.YT_PASSWORD);
             await page.click("#passwordNext");
-            await page.waitFor(".ytp-play-button"); // Waiting for the YouTube video player to be ready
+
+            // Wait for the YouTube video player to be ready
+            await page.waitForSelector(".ytp-play-button", { visible: true });
             console.log("Login successful.");
 
             console.log("Navigating to YouTube video: " + url);
             await page.goto(url);
-            await page.waitForSelector("video");
+
+            // Wait for the video element to appear
+            await page.waitForSelector("video", { visible: true });
 
             // Hide everything except the video element
             await page.evaluate(() => {
-              // Get all elements except the video
               const elementsToHide = document.body.children;
               Array.from(elementsToHide).forEach(element => {
                 if (element.tagName.toLowerCase() !== 'video') {
@@ -106,6 +109,7 @@ jobs:
             const file = fs.createWriteStream('./downloaded_video.mp4');
             stream.pipe(file);
 
+            // Wait for the video to end
             await page.evaluate(() => {
               return new Promise((resolve) => {
                 const video = document.querySelector("video");
