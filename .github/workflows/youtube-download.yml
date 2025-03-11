@@ -72,13 +72,15 @@ jobs:
             console.log("Recording finished.");
 
             stream.destroy();
+            file.on('finish', async () => {
+              console.log("File stream closed.");
+              await browser.close();
+              console.log("Browser closed.");
+              xvfb.stop();
+              console.log("Xvfb stopped.");
+              process.exit(0);
+            });
             file.close();
-            console.log("Video saved successfully.");
-
-            await browser.close();
-            console.log("Browser closed.");
-            xvfb.stop();
-            console.log("Xvfb stopped.");
           };
 
           const url = process.argv[2];
