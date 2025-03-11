@@ -1,4 +1,4 @@
-name: Download YouTube Video and Release
+name: Record YouTube Video and Release
 
 on:
   workflow_dispatch:
@@ -9,85 +9,89 @@ on:
         type: string
 
 jobs:
-  download-and-release:
+  record-and-release:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout del repositorio
         uses: actions/checkout@v4
 
-      - name: Restaurar caché de Docker
-        id: docker-cache
-        uses: actions/cache@v4
-        with:
-          path: /tmp/docker-cache.tar
-          key: docker-image-ytdlp-v1
-
-      - name: Cargar imagen Docker desde caché si existe
-        if: steps.docker-cache.outputs.cache-hit == 'true'
-        run: docker load -i /tmp/docker-cache.tar || true
-
-      - name: Crear Dockerfile en línea
+      - name: Instalar dependencias (Puppeteer y FFmpeg)
         run: |
-          cat <<EOF > Dockerfile
-          FROM python:3.9-slim
+          apt-get update && apt-get install -y ffmpeg pulseaudio xvfb
+          npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
 
-          RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
-          RUN pip install --no-cache-dir yt-dlp
-
-          WORKDIR /app
-          COPY entrypoint.sh /entrypoint.sh
-          RUN chmod +x /entrypoint.sh
-
-          VOLUME ["/app/cache"]
-          ENTRYPOINT ["/entrypoint.sh"]
-          EOF
-
-      - name: Crear script de descarga en línea
-        run: |
-          cat <<EOF > entrypoint.sh
-          #!/bin/bash
-          set -e
-
-          echo "Iniciando descarga de video..."
-          
-          # Descargar video con autenticación
-          yt-dlp --username "\$YT_USERNAME" --password "\$YT_PASSWORD" --cache-dir /app/cache -o "/app/video.%(ext)s" "\$YOUTUBE_URL"
-          EOF
-
-      - name: Construir imagen Docker (si no está en caché)
-        run: docker build -t youtube-downloader .
-
-      - name: Guardar imagen Docker en caché
-        if: steps.docker-cache.outputs.cache-hit != 'true'
-        run: docker save youtube-downloader -o /tmp/docker-cache.tar
-
-      - name: Restaurar caché de yt-dlp
-        uses: actions/cache@v4
-        with:
-          path: yt-cache
-          key: yt-dlp-cache-v1
-          restore-keys: yt-dlp-cache-
-
-      - name: Ejecutar contenedor y descargar video con autenticación segura
+      - name: Grabar video desde YouTube
         env:
           YOUTUBE_URL: ${{ inputs.youtube_url }}
-          YT_USERNAME: ${{ secrets.YT_USERNAME }}
-          YT_PASSWORD: ${{ secrets.YT_PASSWORD }}
         run: |
-          docker run --rm -v "$(pwd):/app" -v "$(pwd)/yt-cache:/app/cache" \
-            -e YOUTUBE_URL="${{ inputs.youtube_url }}" \
-            -e YT_USERNAME="${{ secrets.YT_USERNAME }}" \
-            -e YT_PASSWORD="${{ secrets.YT_PASSWORD }}" \
-            youtube-downloader
+          cat <<EOF > record.js
+          const puppeteer = require('puppeteer-extra');
+          const stealthPlugin = require('puppeteer-extra-plugin-stealth');
+          puppeteer.use(stealthPlugin());
 
-      - name: Obtener el nombre del archivo descargado
-        id: get_filename
-        run: echo "filename=$(ls | grep 'video.')" >> $GITHUB_ENV
+          const { exec } = require('child_process');
 
-      - name: Crear release y subir video
+          (async () => {
+              const browser = await puppeteer.launch({
+                  headless: false, 
+                  args: [
+                      '--no-sandbox',
+                      '--disable-setuid-sandbox',
+                      '--window-size=1280,720',
+                      '--autoplay-policy=no-user-gesture-required',
+                      '--enable-usermedia-screen-capturing',
+                      '--allow-http-screen-capture',
+                      '--disable-infobars',
+                      '--disable-background-timer-throttling',
+                      '--disable-backgrounding-occluded-windows',
+                      '--disable-renderer-backgrounding',
+                      '--force-color-profile=srgb',
+                      '--disable-features=PreloadMediaEngagementData,AutoplayIgnoreWebAudio,MediaEngagementBypassAutoplayPolicies',
+                      '--use-fake-ui-for-media-stream',
+                      '--use-fake-device-for-media-stream',
+                      '--enable-logging', '--v=1'
+                  ],
+                  defaultViewport: null
+              });
+
+              const page = await browser.newPage();
+              console.log("Cargando YouTube...");
+              await page.goto(process.env.YOUTUBE_URL, { waitUntil: 'networkidle2' });
+
+              console.log("Esperando a que el video cargue...");
+              await page.waitForSelector("video", { timeout: 60000 });
+
+              // Asegurar que el video está en máxima calidad
+              await page.evaluate(() => {
+                  let video = document.querySelector("video");
+                  video.play();
+                  video.volume = 1.0;
+              });
+
+              console.log("Iniciando grabación con FFmpeg...");
+              const ffmpegCommand = 'ffmpeg -y -f pulse -i default -f x11grab -r 30 -s 1280x720 -i :99.0 -c:v libx264 -preset ultrafast -crf 18 -c:a aac -b:a 192k video.mp4';
+              const recording = exec(ffmpegCommand);
+
+              console.log("Grabando durante 60 segundos...");
+              await page.waitForTimeout(60000); // Graba 60s (ajustable)
+
+              console.log("Finalizando grabación...");
+              recording.kill();
+
+              await browser.close();
+          })();
+          EOF
+
+          node record.js
+
+      - name: Mejorar calidad con FFmpeg
+        run: |
+          ffmpeg -i video.mp4 -vf "scale=1280:720:flags=lanczos" -c:v libx264 -preset slow -crf 18 -c:a aac -b:a 192k video_final.mp4
+
+      - name: Subir video como release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RELEASE_NAME=$(date +"%Y-%m-%d")
-          gh release create "$RELEASE_NAME" "$filename" --title "Video descargado el $RELEASE_NAME" --notes "Descarga automática desde YouTube"
+          gh release create "$RELEASE_NAME" "video_final.mp4" --title "Video grabado el $RELEASE_NAME" --notes "Grabación automática desde YouTube"
