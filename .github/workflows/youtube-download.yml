@@ -1,118 +1,87 @@
-name: Record YouTube Video and Release
+name: Descargar y subir vídeo de YouTube
 
 on:
   workflow_dispatch:
     inputs:
-      youtube_url:
-        description: "URL del video de YouTube a grabar"
+      url:
+        description: 'URL del vídeo de YouTube'
         required: true
         type: string
 
 jobs:
-  record-and-release:
-    runs-on: ubuntu-latest
+  download_and_upload:
+    runs-on: windows-latest
     steps:
-      - name: Checkout del repositorio
-        uses: actions/checkout@v4
+      # Paso 1: Usar el cache para instalar Node.js
+      - name: Cache Node.js dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
-      - name: Instalar dependencias del sistema y Node
+      # Paso 2: Instalar Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      # Paso 3: Clonar el repositorio
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Paso 4: Instalar dependencias
+      - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg xvfb wget
-          # Instalar Google Chrome stable (usamos el paquete .deb)
-          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          sudo apt install -y ./google-chrome-stable_current_amd64.deb
-          rm google-chrome-stable_current_amd64.deb
-          # Inicializamos un proyecto Node y instalamos Puppeteer
-          npm init -y
-          npm install puppeteer
+          npm install puppeteer puppeteer-stream
 
-      - name: Crear script de grabación (record.js)
+      # Paso 5: Crear el script `downloadVideo.js` directamente en el runner
+      - name: Crear el script de descarga
         run: |
-          cat <<'EOF' > record.js
-          const puppeteer = require('puppeteer');
-          const fs = require('fs');
-          
-          (async () => {
-            // Lanzamos Chrome en modo no headless sobre Xvfb y con flags para capturar pantalla sin diálogo
-            const browser = await puppeteer.launch({
-              headless: false,
-              args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--use-fake-ui-for-media-stream',
-                '--auto-select-desktop-capture-source=Entire screen',
-                '--window-size=1280,720'
-              ],
-              defaultViewport: { width: 1280, height: 720 },
-              executablePath: '/usr/bin/google-chrome-stable'
-            });
-            const page = await browser.newPage();
-            console.log("Navegando a YouTube...");
-            await page.goto(process.env.YOUTUBE_URL, { waitUntil: 'networkidle2' });
-            // Esperamos a que se cargue algún elemento <video>
-            console.log("Esperando que aparezca el elemento <video>...");
-            await page.waitForSelector('video', { timeout: 60000 });
-            // Inyectamos código para usar getDisplayMedia y MediaRecorder
-            const recordedBase64 = await page.evaluate(async () => {
-              // Solicita captura de pantalla (del propio navegador) usando getDisplayMedia
-              const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-              const options = { mimeType: 'video/webm;codecs=vp9,opus' };
-              const mediaRecorder = new MediaRecorder(stream, options);
-              const chunks = [];
-              mediaRecorder.ondataavailable = event => {
-                if (event.data && event.data.size > 0) {
-                  chunks.push(event.data);
-                }
-              };
-              mediaRecorder.start();
-              // Graba durante 60 segundos
-              await new Promise(resolve => setTimeout(resolve, 60000));
-              await new Promise(resolve => {
-                mediaRecorder.onstop = resolve;
-                mediaRecorder.stop();
-              });
-              const blob = new Blob(chunks, { type: 'video/webm' });
-              // Convierte el blob a base64
-              return await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                  // reader.result es "data:<mime>;base64,...", separamos la parte base64
-                  resolve(reader.result.split(',')[1]);
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-              });
-            });
-            // Escribimos el archivo en disco
-            fs.writeFileSync('video.webm', Buffer.from(recordedBase64, 'base64'));
-            console.log("Grabación completada: video.webm creado");
-            await browser.close();
-          })().catch(err => {
-            console.error(err);
-            process.exit(1);
-          });
-          EOF
+          echo "const puppeteer = require('puppeteer');" > downloadVideo.js
+          echo "const fs = require('fs');" >> downloadVideo.js
+          echo "const path = require('path');" >> downloadVideo.js
+          echo "const puppeteerStream = require('puppeteer-stream');" >> downloadVideo.js
+          echo "" >> downloadVideo.js
+          echo "async function downloadVideo(url, outputDir) {" >> downloadVideo.js
+          echo "  const browser = await puppeteer.launch();" >> downloadVideo.js
+          echo "  const page = await browser.newPage();" >> downloadVideo.js
+          echo "  await page.goto(url, { waitUntil: 'networkidle2' });" >> downloadVideo.js
+          echo "  const videoStream = await puppeteerStream(page, 'video');" >> downloadVideo.js
+          echo "  const filePath = path.join(outputDir, \`video_\${Date.now()}.mp4\`);" >> downloadVideo.js
+          echo "  const fileStream = fs.createWriteStream(filePath);" >> downloadVideo.js
+          echo "  videoStream.pipe(fileStream);" >> downloadVideo.js
+          echo "" >> downloadVideo.js
+          echo "  fileStream.on('finish', () => {" >> downloadVideo.js
+          echo "    console.log(\`Vídeo descargado a \${filePath}\`);" >> downloadVideo.js
+          echo "    browser.close();" >> downloadVideo.js
+          echo "  });" >> downloadVideo.js
+          echo "}" >> downloadVideo.js
+          echo "" >> downloadVideo.js
+          echo "const url = process.argv[2];" >> downloadVideo.js
+          echo "const outputDir = process.argv[3];" >> downloadVideo.js
+          echo "" >> downloadVideo.js
+          echo "downloadVideo(url, outputDir);" >> downloadVideo.js
 
-      - name: Iniciar Xvfb
+      # Paso 6: Descargar el vídeo de YouTube
+      - name: Descargar el vídeo usando puppeteer-stream
         run: |
-          # Iniciamos Xvfb para proporcionar entorno gráfico (puerto :99)
-          Xvfb :99 -screen 0 1280x720x24 -ac &
-          # Establecemos la variable DISPLAY para que Chrome la use
-          echo "DISPLAY=:99" >> $GITHUB_ENV
+          node downloadVideo.js ${{ github.event.inputs.url }} ${{ runner.temp }}
 
-      - name: Ejecutar el script de grabación
+      # Paso 7: Crear un archivo con la fecha de ejecución
+      - name: Generar nombre del archivo
+        id: timestamp
+        run: |
+          echo "TIMESTAMP=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_ENV
+          echo "video_file=${{ runner.temp }}/video_${{ env.TIMESTAMP }}.mp4" >> $GITHUB_ENV
+
+      # Paso 8: Subir el vídeo como una release
+      - name: Upload video as release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ env.video_file }}
         env:
-          YOUTUBE_URL: ${{ inputs.youtube_url }}
-        run: node record.js
-
-      - name: Convertir video a MP4 con FFmpeg
-        run: |
-          ffmpeg -i video.webm -vf "scale=1280:720:flags=lanczos" -c:v libx264 -preset slow -crf 18 -c:a aac -b:a 192k video_final.mp4
-
-      - name: Crear release y subir video
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          RELEASE_NAME=$(date +"%Y-%m-%d")
-          gh release create "$RELEASE_NAME" "video_final.mp4" --title "Video grabado el $RELEASE_NAME" --notes "Video descargado (grabado vía getDisplayMedia/MediaRecorder) desde YouTube"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
