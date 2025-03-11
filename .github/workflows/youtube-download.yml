@@ -69,6 +69,7 @@ jobs:
             await page.waitForSelector("input[type='password']");
 
             await page.type("input[type='password']", process.env.YT_PASSWORD);
+            await page.waitForSelector("#passwordNext");
             await page.click("#passwordNext");
 
             // Wait for the YouTube video player to be ready
