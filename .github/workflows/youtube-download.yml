@@ -61,19 +61,19 @@ jobs:
             const page = await browser.newPage();
             console.log("Navigating to YouTube video: " + url);
             await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36')
+
             await page.goto('https://accounts.google.com/signin', {'timeout': 10000, 'waitUntil':'load'});
             console.log("Logging into YouTube...");
+
             await page.type("input[type='email']", process.env.YT_EMAIL);
             await page.click("#identifierNext");
- 
+
             // Wait for the password input to appear
             await page.waitForSelector("input[type='password']");
- 
             await page.type("input[type='password']", process.env.YT_PASSWORD);
             await page.keyboard.press('Enter');
- 
+
             console.log("Login successful.");
-            // Wait for the YouTube video player to be ready
             await page.goto(url);
 
             console.log("Starting video stream...");
