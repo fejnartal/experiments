@@ -15,7 +15,7 @@ jobs:
       - name: Checkout del repositorio
         uses: actions/checkout@v4
 
-      - name: Instalar dependencias necesarias (Puppeteer, FFmpeg, Xvfb, puppeteer-stream)
+      - name: Instalar dependencias necesarias
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -32,9 +32,9 @@ jobs:
             google-chrome-stable \
             ffmpeg \
             --no-install-recommends
-
-          # Instalar dependencias de Puppeteer y puppeteer-stream
-          npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth puppeteer-stream
+          
+          # Instalar dependencias Node (incluye puppeteer-stream y plugins)
+          npm install puppeteer-stream puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
 
       - name: Iniciar servidor X virtual (Xvfb)
         run: |
@@ -45,69 +45,65 @@ jobs:
         env:
           YOUTUBE_URL: ${{ inputs.youtube_url }}
         run: |
-          cat <<EOF > record.js
-          const puppeteer = require('puppeteer-extra');
+          cat <<'EOF' > record.js
           const puppeteerStream = require('puppeteer-stream');
-          const stealthPlugin = require('puppeteer-extra-plugin-stealth');
-          puppeteer.use(stealthPlugin());
-
+          const fs = require('fs');
           (async () => {
-              const browser = await puppeteer.launch({
-                  headless: true, // Modo headless
-                  args: [
-                      '--no-sandbox',
-                      '--disable-setuid-sandbox',
-                      '--enable-usermedia-screen_capturing',
-                      '--allow-http-screen-capture',
-                      '--use-fake-ui-for-media-stream',
-                      '--use-fake-device-for-media-stream',
-                      '--autoplay-policy=no-user-gesture-required',
-                      '--enable-usermedia-screen-capturing'
-                  ],
-                  defaultViewport: null,
-                  executablePath: '/usr/bin/google-chrome-stable'
-              });
-
-              const page = await browser.newPage();
-              console.log("Cargando YouTube...");
-              await page.goto(process.env.YOUTUBE_URL, { waitUntil: 'networkidle2' });
-
-              console.log("Esperando a que el video cargue...");
-              await page.waitForSelector("video", { timeout: 60000 });
-
-              // Inicia la captura de audio y video con puppeteer-stream
-              const { stream, video } = await puppeteerStream.stream(page);
-
-              // Inicia la reproducción del video
-              await page.evaluate(() => {
-                  let video = document.querySelector("video");
-                  video.play();
-                  video.volume = 1.0;
-              });
-
-              console.log("Esperando a que el video empiece a reproducirse...");
-              await page.waitForFunction(() => {
-                  const video = document.querySelector('video');
-                  return video && !video.paused && video.currentTime > 0;
-              }, { timeout: 60000 });
-
-              console.log("Grabando durante 60 segundos...");
-              await page.waitFor(() => new Promise(resolve => setTimeout(resolve, 60000))); // Esperar 60s
-
-              console.log("Finalizando grabación...");
-              stream.destroy();
-
-              await browser.close();
+            // Usamos el método launch de puppeteer-stream
+            const browser = await puppeteerStream.launch({
+              headless: true,
+              args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--enable-usermedia-screen_capturing',
+                '--allow-http-screen-capture',
+                '--use-fake-ui-for-media-stream',
+                '--use-fake-device-for-media-stream',
+                '--autoplay-policy=no-user-gesture-required'
+              ],
+              defaultViewport: null,
+              executablePath: '/usr/bin/google-chrome-stable'
+            });
+            const page = await browser.newPage();
+            console.log("Cargando YouTube...");
+            await page.goto(process.env.YOUTUBE_URL, { waitUntil: 'networkidle2' });
+            console.log("Esperando que el video cargue...");
+            await page.waitForSelector('video', { timeout: 60000 });
+            
+            // Inicia la reproducción del video
+            await page.evaluate(() => {
+              const video = document.querySelector('video');
+              video.play();
+              video.volume = 1.0;
+            });
+            
+            console.log("Esperando que el video empiece a reproducirse...");
+            await page.waitForFunction(() => {
+              const video = document.querySelector('video');
+              return video && !video.paused && video.currentTime > 0;
+            }, { timeout: 60000 });
+            
+            console.log("Iniciando grabación con puppeteer-stream...");
+            // Inicia la captura del stream (audio y video)
+            const stream = await puppeteerStream.start(page, { audio: true, video: true });
+            const out = fs.createWriteStream('video.webm');
+            stream.pipe(out);
+            
+            console.log("Grabando durante 60 segundos...");
+            await new Promise(resolve => setTimeout(resolve, 60000));
+            
+            console.log("Finalizando grabación...");
+            stream.destroy();
+            await browser.close();
           })();
           EOF
-
           node record.js
 
-      - name: Mejorar calidad con FFmpeg
+      - name: Convertir video a MP4 con FFmpeg
         run: |
-          ffmpeg -i video.mp4 -vf "scale=1280:720:flags=lanczos" -c:v libx264 -preset slow -crf 18 -c:a aac -b:a 192k video_final.mp4
+          ffmpeg -i video.webm -vf "scale=1280:720:flags=lanczos" -c:v libx264 -preset slow -crf 18 -c:a aac -b:a 192k video_final.mp4
 
-      - name: Subir video como release
+      - name: Subir video como Release en GitHub
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
