@@ -47,10 +47,8 @@ jobs:
           echo "const puppeteerStream = require('puppeteer-stream');" >> downloadVideo.js
           echo "" >> downloadVideo.js
           echo "async function downloadVideo(url, outputDir) {" >> downloadVideo.js
-          echo "  const browser = await puppeteer.launch();" >> downloadVideo.js
-          echo "  const page = await browser.newPage();" >> downloadVideo.js
-          echo "  await page.goto(url, { waitUntil: 'networkidle2' });" >> downloadVideo.js
-          echo "  const videoStream = await puppeteerStream(page, 'video');" >> downloadVideo.js
+          echo "  // Crear un VideoStream y lanzar la captura" >> downloadVideo.js
+          echo "  const videoStream = await puppeteerStream.launch(page, { video: { width: 1920, height: 1080, frameRate: 30 } });" >> downloadVideo.js
           echo "  const filePath = path.join(outputDir, 'video_' + Date.now() + '.mp4');" >> downloadVideo.js
           echo "  const fileStream = fs.createWriteStream(filePath);" >> downloadVideo.js
           echo "  videoStream.pipe(fileStream);" >> downloadVideo.js
