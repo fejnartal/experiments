@@ -51,12 +51,12 @@ jobs:
           echo "  const page = await browser.newPage();" >> downloadVideo.js
           echo "  await page.goto(url, { waitUntil: 'networkidle2' });" >> downloadVideo.js
           echo "  const videoStream = await puppeteerStream(page, 'video');" >> downloadVideo.js
-          echo "  const filePath = path.join(outputDir, \`video_\${Date.now()}.mp4\`);" >> downloadVideo.js
+          echo "  const filePath = path.join(outputDir, 'video_' + Date.now() + '.mp4');" >> downloadVideo.js
           echo "  const fileStream = fs.createWriteStream(filePath);" >> downloadVideo.js
           echo "  videoStream.pipe(fileStream);" >> downloadVideo.js
           echo "" >> downloadVideo.js
           echo "  fileStream.on('finish', () => {" >> downloadVideo.js
-          echo "    console.log(\`Vídeo descargado a \${filePath}\`);" >> downloadVideo.js
+          echo "    console.log('Vídeo descargado a ' + filePath);" >> downloadVideo.js
           echo "    browser.close();" >> downloadVideo.js
           echo "  });" >> downloadVideo.js
           echo "}" >> downloadVideo.js
