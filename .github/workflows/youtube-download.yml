@@ -79,6 +79,7 @@ jobs:
               console.log("Esperando a que el video empiece a reproducirse...");
               await page.waitForFunction(() => {
                   const video = document.querySelector('video');
+                  console.log("Video encontrado: ", video);
                   return video && !video.paused && video.currentTime > 0;
               }, { timeout: 60000 });
 
