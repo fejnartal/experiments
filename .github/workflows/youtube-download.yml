@@ -53,11 +53,11 @@ jobs:
             });
 
             const page = await browser.newPage();
+            await page.goto(url);
             const stream = await getStream(page, { audio: true, video: true });
             const file = fs.createWriteStream('./downloaded_video.mp4');
             stream.pipe(file);
 
-            await page.goto(url);
             await new Promise(resolve => setTimeout(resolve, 10000)); // Adjust duration
 
             stream.destroy();
