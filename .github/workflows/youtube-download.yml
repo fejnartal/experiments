@@ -56,7 +56,6 @@ jobs:
                 height: 1920,
               },
               args: [
-                '--headless=new',
                 '--no-sandbox',
                 '--window-size=1080,1920',
                 '--disable-setuid-sandbox',
