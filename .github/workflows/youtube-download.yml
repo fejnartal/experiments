@@ -20,13 +20,14 @@ jobs:
           sudo apt-get install -y google-chrome-stable xvfb
           wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
           sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -fy
-          npm install puppeteer-stream xvfb
+          npm install puppeteer puppeteer-stream xvfb
 
       - name: Download YouTube video
         run: |
           cat << 'EOF' > download_video.js
           const fs = require('fs');
-          const { launch } = require('puppeteer-stream');
+          const {executablePath} = require('puppeteer');
+          const { launch, getStream } = require('puppeteer-stream');
           const Xvfb = require('xvfb');
 
           const downloadVideo = async (url) => {
@@ -37,9 +38,18 @@ jobs:
             xvfb.start();
 
             const browser = await launch({
-              executablePath: 'google-chrome',
-              headless: true,
-              args: ['--no-sandbox'],
+              executablePath: executablePath(),
+              defaultViewport: {
+                width: 1080,
+                height: 1920,
+              },
+              args: [
+                '--headless=new',
+                '--no-sandbox',
+                '--window-size=1080,1920',
+                '--disable-setuid-sandbox',
+                '--ozone-override-screen-size=1080,1920',
+              ],
             });
 
             const page = await browser.newPage();
