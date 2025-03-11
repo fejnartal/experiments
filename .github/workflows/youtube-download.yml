@@ -11,54 +11,61 @@ on:
 jobs:
   record-and-release:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout del repositorio
         uses: actions/checkout@v4
 
-      - name: Instalar dependencias (Puppeteer y FFmpeg)
+      - name: Instalar dependencias necesarias (Puppeteer, FFmpeg, Xvfb, puppeteer-stream)
         run: |
-          apt-get update && apt-get install -y ffmpeg pulseaudio xvfb
-          npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
+          sudo apt-get update
+          sudo apt-get install -y \
+            wget \
+            gnupg \
+            fonts-ipafont-gothic \
+            fonts-wqy-zenhei \
+            fonts-thai-tlwg \
+            fonts-kacst \
+            fonts-freefont-ttf \
+            libxss1 \
+            pulseaudio \
+            xvfb \
+            google-chrome-stable \
+            ffmpeg \
+            --no-install-recommends
+
+          # Instalar dependencias de Puppeteer y puppeteer-stream
+          npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth puppeteer-stream
 
       - name: Iniciar servidor X virtual (Xvfb)
         run: |
           Xvfb :99 -screen 0 1280x720x24 -ac &
           echo "DISPLAY=:99" >> $GITHUB_ENV
 
-      - name: Grabar video desde YouTube
+      - name: Grabar video desde YouTube usando puppeteer-stream
         env:
           YOUTUBE_URL: ${{ inputs.youtube_url }}
         run: |
           cat <<EOF > record.js
           const puppeteer = require('puppeteer-extra');
+          const puppeteerStream = require('puppeteer-stream');
           const stealthPlugin = require('puppeteer-extra-plugin-stealth');
           puppeteer.use(stealthPlugin());
 
-          const { exec } = require('child_process');
-
           (async () => {
               const browser = await puppeteer.launch({
-                  headless: false, 
+                  headless: true, // Modo headless
                   args: [
                       '--no-sandbox',
                       '--disable-setuid-sandbox',
-                      '--window-size=1280,720',
-                      '--autoplay-policy=no-user-gesture-required',
-                      '--enable-usermedia-screen-capturing',
+                      '--enable-usermedia-screen_capturing',
                       '--allow-http-screen-capture',
-                      '--disable-infobars',
-                      '--disable-background-timer-throttling',
-                      '--disable-backgrounding-occluded-windows',
-                      '--disable-renderer-backgrounding',
-                      '--force-color-profile=srgb',
-                      '--disable-features=PreloadMediaEngagementData,AutoplayIgnoreWebAudio,MediaEngagementBypassAutoplayPolicies',
                       '--use-fake-ui-for-media-stream',
                       '--use-fake-device-for-media-stream',
-                      '--enable-logging', '--v=1'
+                      '--autoplay-policy=no-user-gesture-required',
+                      '--enable-usermedia-screen-capturing'
                   ],
                   defaultViewport: null,
-                  executablePath: '/usr/bin/google-chrome'
+                  executablePath: '/usr/bin/google-chrome-stable'
               });
 
               const page = await browser.newPage();
@@ -68,31 +75,27 @@ jobs:
               console.log("Esperando a que el video cargue...");
               await page.waitForSelector("video", { timeout: 60000 });
 
-              // Asegurar que el video está en máxima calidad y reproducirlo
+              // Inicia la captura de audio y video con puppeteer-stream
+              const { stream, video } = await puppeteerStream(page);
+
+              // Inicia la reproducción del video
               await page.evaluate(() => {
                   let video = document.querySelector("video");
                   video.play();
                   video.volume = 1.0;
               });
 
-              // Esperamos a que el video comience a reproducirse (no solo cargarse)
               console.log("Esperando a que el video empiece a reproducirse...");
               await page.waitForFunction(() => {
                   const video = document.querySelector('video');
-                  console.log("Video encontrado: ", video);
                   return video && !video.paused && video.currentTime > 0;
               }, { timeout: 60000 });
 
-              console.log("Iniciando grabación con FFmpeg...");
-              const ffmpegCommand = 'ffmpeg -y -f x11grab -r 30 -s 1280x720 -i :99.0 -f pulse -ac 2 -i default -c:v libx264 -preset ultrafast -crf 18 -c:a aac -b:a 192k video.mp4';
-              const recording = exec(ffmpegCommand);
-
-              // Usamos waitFor para esperar un tiempo específico (60s)
               console.log("Grabando durante 60 segundos...");
               await page.waitFor(() => new Promise(resolve => setTimeout(resolve, 60000))); // Esperar 60s
 
               console.log("Finalizando grabación...");
-              recording.kill();
+              stream.destroy();
 
               await browser.close();
           })();
