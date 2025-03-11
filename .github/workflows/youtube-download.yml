@@ -50,6 +50,7 @@ jobs:
 
             console.log("Launching Puppeteer...");
             const browser = await launch({
+              protocolTimeout: 999999999999999999999999,
               executablePath: executablePath(),
               defaultViewport: {
                 width: 1080,
