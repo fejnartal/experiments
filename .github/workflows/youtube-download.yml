@@ -21,7 +21,7 @@ jobs:
           sudo apt-get install -y google-chrome-stable xvfb pulseaudio pavucontrol
           wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
           sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -fy
-          npm install puppeteer puppeteer-stream xvfb
+          npm install puppeteer puppeteer-screen-recorder xvfb
           echo "Dependencies installed successfully."
 
       - name: Set up PulseAudio
@@ -36,8 +36,8 @@ jobs:
           echo "Creating download_video.js script..."
           cat << 'EOF' > download_video.js
           const fs = require('fs');
-          const { executablePath } = require('puppeteer');
-          const { launch, getStream } = require('puppeteer-stream');
+          const puppeteer = require('puppeteer');
+          const { Recorder } = require('puppeteer-screen-recorder');
           const Xvfb = require('xvfb');
 
           const downloadVideo = async (url) => {
@@ -49,14 +49,12 @@ jobs:
             xvfb.start();
 
             console.log("Launching Puppeteer...");
-            const browser = await launch({
-              executablePath: executablePath(),
-              defaultViewport: null,
+            const browser = await puppeteer.launch({
               headless: false,
+              executablePath: puppeteer.executablePath(),
               args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--start-fullscreen',
                 '--use-fake-ui-for-media-stream',
                 '--use-fake-device-for-media-stream',
                 '--enable-usermedia-screen-capturing',
@@ -65,31 +63,32 @@ jobs:
                 '--use-gl=swiftshader'
               ],
             });
-            console.log("Puppeteer launched successfully.");
-
             const page = await browser.newPage();
-            await page.goto('https://accounts.google.com/signin');
+
             console.log("Logging into YouTube...");
+            await page.goto('https://accounts.google.com/signin');
             await page.type("input[type='email']", process.env.YT_EMAIL);
             await page.click("#identifierNext");
-
-            // Wait for the password input to appear
             await page.waitForSelector("input[type='password']");
-
             await page.type("input[type='password']", process.env.YT_PASSWORD);
             await page.keyboard.press('Enter');
 
             // Wait for the YouTube video player to be ready
-            // await page.waitForSelector(".ytp-play-button");
             console.log("Login successful.");
-
-            console.log("Navigating to YouTube video: " + url);
             await page.goto(url);
 
             // Wait for the video element to appear
             await page.waitForSelector("video");
 
+            // Hide everything except the video element
             await page.evaluate(() => {
+              const elementsToHide = document.body.children;
+              Array.from(elementsToHide).forEach(element => {
+                if (element.tagName.toLowerCase() !== 'video') {
+                  element.style.display = 'none';
+                }
+              });
+
               // Optionally, set the video element to fullscreen and make it take the full screen size
               const video = document.querySelector("video");
               if (video) {
@@ -104,11 +103,15 @@ jobs:
               }
             });
 
-            console.log("Starting video and audio stream...");
-            const stream = await getStream(page, { video: true, audio: true });
-            const file = fs.createWriteStream('./downloaded_video.mp4');
-            stream.pipe(file);
+            // Start the video recorder
+            const recorder = new Recorder(page, {
+              video: true,
+              audio: true,
+              filePath: './downloaded_video.mp4',
+            });
+            await recorder.start();
 
+            console.log("Recording started...");
             // Wait for the video to end
             await page.evaluate(() => {
               return new Promise((resolve) => {
@@ -116,18 +119,17 @@ jobs:
                 video.addEventListener("ended", resolve);
               });
             });
+
+            // Stop the recorder and save the video
+            await recorder.stop();
             console.log("Video playback finished.");
 
-            stream.destroy();
-            file.on('finish', async () => {
-              console.log("File stream closed.");
-              await browser.close();
-              console.log("Browser closed.");
-              xvfb.stop();
-              console.log("Xvfb stopped.");
-              process.exit(0);
-            });
-            file.close();
+            // Close browser and stop Xvfb
+            await browser.close();
+            console.log("Browser closed.");
+            xvfb.stop();
+            console.log("Xvfb stopped.");
+            process.exit(0);
           };
 
           const url = process.argv[2];
