@@ -55,8 +55,8 @@ jobs:
                 width: 1080,
                 height: 1920,
               },
-              headless: 'old',
               args: [
+                '--headless=new',
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
