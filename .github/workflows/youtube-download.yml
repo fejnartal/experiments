@@ -51,12 +51,12 @@ jobs:
             console.log("Launching Puppeteer...");
             const browser = await launch({
               executablePath: executablePath(),
+              headless: false,
               defaultViewport: {
                 width: 1080,
                 height: 1920,
               },
               args: [
-                '--headless=new',
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
