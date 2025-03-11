@@ -16,15 +16,30 @@ jobs:
       - name: Checkout del repositorio
         uses: actions/checkout@v4
 
+      - name: Restaurar caché de Docker
+        id: docker-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/docker-cache.tar
+          key: docker-image-ytdlp-v1
+
+      - name: Cargar imagen Docker desde caché si existe
+        if: steps.docker-cache.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/docker-cache.tar || true
+
       - name: Crear Dockerfile en línea
         run: |
           cat <<EOF > Dockerfile
           FROM python:3.9-slim
+
           RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
-          RUN pip install yt-dlp
+          RUN pip install --no-cache-dir yt-dlp
+
           WORKDIR /app
           COPY entrypoint.sh /entrypoint.sh
           RUN chmod +x /entrypoint.sh
+
+          VOLUME ["/app/cache"]
           ENTRYPOINT ["/entrypoint.sh"]
           EOF
 
@@ -33,30 +48,33 @@ jobs:
           cat <<EOF > entrypoint.sh
           #!/bin/bash
           set -e
-          YOUTUBE_URL="\$1"
-          COOKIES_FILE="/app/cookies.txt"
+          echo "Iniciando descarga de video..."
 
-          echo "Iniciando descarga de: \$YOUTUBE_URL"
-
-          # Si existe el archivo de cookies, lo usa
-          if [ -f "\$COOKIES_FILE" ]; then
-              yt-dlp --cookies \$COOKIES_FILE -o "/app/video.%(ext)s" "\$YOUTUBE_URL"
-          else
-              yt-dlp -o "/app/video.%(ext)s" "\$YOUTUBE_URL"
-          fi
+          # Autenticación segura con username/password usando --password-stdin
+          echo "\$YT_PASSWORD" | yt-dlp --username "\$YT_USERNAME" --password-stdin --cache-dir /app/cache -o "/app/video.%(ext)s" "\$YOUTUBE_URL"
           EOF
 
-      - name: Pasar credenciales seguras
-        run: |
-          if [ -n "${{ secrets.YT_COOKIES }}" ]; then
-            echo "${{ secrets.YT_COOKIES }}" > cookies.txt
-          fi
-
-      - name: Construir imagen Docker
+      - name: Construir imagen Docker (si no está en caché)
         run: docker build -t youtube-downloader .
 
-      - name: Ejecutar contenedor y descargar video
-        run: docker run --rm -v "$(pwd):/app" youtube-downloader "${{ inputs.youtube_url }}"
+      - name: Guardar imagen Docker en caché
+        if: steps.docker-cache.outputs.cache-hit != 'true'
+        run: docker save youtube-downloader -o /tmp/docker-cache.tar
+
+      - name: Restaurar caché de yt-dlp
+        uses: actions/cache@v4
+        with:
+          path: yt-cache
+          key: yt-dlp-cache-v1
+          restore-keys: yt-dlp-cache-
+
+      - name: Ejecutar contenedor y descargar video con autenticación segura
+        run: |
+          docker run --rm -v "$(pwd):/app" -v "$(pwd)/yt-cache:/app/cache" \
+            -e YOUTUBE_URL="${{ inputs.youtube_url }}" \
+            -e YT_USERNAME="${{ secrets.YT_USERNAME }}" \
+            -e YT_PASSWORD="${{ secrets.YT_PASSWORD }}" \
+            youtube-downloader
 
       - name: Obtener el nombre del archivo descargado
         id: get_filename
