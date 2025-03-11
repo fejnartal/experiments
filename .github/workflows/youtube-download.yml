@@ -48,10 +48,11 @@ jobs:
           cat <<EOF > entrypoint.sh
           #!/bin/bash
           set -e
-          echo "Iniciando descarga de video..."
 
-          # Autenticación segura con username/password usando --password-stdin
-          echo "\$YT_PASSWORD" | yt-dlp --username "\$YT_USERNAME" --password-stdin --cache-dir /app/cache -o "/app/video.%(ext)s" "\$YOUTUBE_URL"
+          echo "Iniciando descarga de video..."
+          
+          # Descargar video con autenticación
+          yt-dlp --username "\$YT_USERNAME" --password "\$YT_PASSWORD" --cache-dir /app/cache -o "/app/video.%(ext)s" "\$YOUTUBE_URL"
           EOF
 
       - name: Construir imagen Docker (si no está en caché)
@@ -69,6 +70,10 @@ jobs:
           restore-keys: yt-dlp-cache-
 
       - name: Ejecutar contenedor y descargar video con autenticación segura
+        env:
+          YOUTUBE_URL: ${{ inputs.youtube_url }}
+          YT_USERNAME: ${{ secrets.YT_USERNAME }}
+          YT_PASSWORD: ${{ secrets.YT_PASSWORD }}
         run: |
           docker run --rm -v "$(pwd):/app" -v "$(pwd)/yt-cache:/app/cache" \
             -e YOUTUBE_URL="${{ inputs.youtube_url }}" \
