@@ -17,69 +17,85 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Dependencies
+        run: npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth fs-extra
+
+      - name: Create Puppeteer Script
         run: |
-          npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth fs-extra
+          $script = @"
+          const puppeteer = require('puppeteer-extra');
+          const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+          const fs = require('fs-extra');
+
+          puppeteer.use(StealthPlugin());
+
+          (async () => {
+              const browser = await puppeteer.launch({
+                  executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+                  headless: false,
+                  args: [
+                      '--no-sandbox',
+                      '--disable-setuid-sandbox',
+                      '--use-fake-ui-for-media-stream',
+                      '--use-fake-device-for-media-stream',
+                      '--allow-file-access-from-files',
+                      '--enable-usermedia-screen-capturing',
+                      '--disable-web-security',
+                      '--autoplay-policy=no-user-gesture-required'
+                  ]
+              });
+
+              const page = await browser.newPage();
+              await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+              await page.setViewport({ width: 1280, height: 720 });
+
+              const url = process.env.TARGET_URL;
+              console.log("Navigating to:", url);
+              await page.goto(url, { waitUntil: 'networkidle2' });
+
+              // Accept cookies if prompted
+              try {
+                  await page.waitForSelector('[aria-label="Accept Cookies"], button:contains("Accept")', { timeout: 5000 });
+                  await page.click('[aria-label="Accept Cookies"], button:contains("Accept")');
+              } catch (err) {
+                  console.log('No cookie popup found.');
+              }
+
+              // Locate media element (video or canvas)
+              const mediaHandle = await page.evaluateHandle(() => {
+                  return document.querySelector('video') || document.querySelector('canvas');
+              });
+
+              if (!mediaHandle) {
+                  console.error('No media element found.');
+                  await browser.close();
+                  process.exit(1);
+              }
+
+              console.log('Recording started...');
+              const exec = require('child_process').exec;
+              const ffmpegCommand = 'ffmpeg -f gdigrab -framerate 30 -i desktop -t 20 recording.mp4';
+              const ffmpegProcess = exec(ffmpegCommand);
+
+              await new Promise(resolve => setTimeout(resolve, 20000)); // Record for 20 seconds
+
+              ffmpegProcess.kill('SIGINT');
+              console.log('Recording stopped.');
+
+              await browser.close();
+
+              if (fs.existsSync('recording.mp4')) {
+                  console.log('Recording saved: recording.mp4');
+              } else {
+                  console.error('Recording failed.');
+                  process.exit(1);
+              }
+          })();
+          "@
+          $script | Set-Content -Path record.js -Encoding utf8
+        shell: pwsh
 
       - name: Run Puppeteer & Record Media
-        run: |
-          echo ^ 
-          const puppeteer = require('puppeteer-extra'); ^ 
-          const StealthPlugin = require('puppeteer-extra-plugin-stealth'); ^ 
-          const fs = require('fs-extra'); ^ 
-          puppeteer.use(StealthPlugin()); ^ 
-          (async () => { ^ 
-              const browser = await puppeteer.launch({ ^ 
-                  executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', ^ 
-                  headless: false, ^ 
-                  args: [ ^ 
-                      '--no-sandbox', ^ 
-                      '--disable-setuid-sandbox', ^ 
-                      '--use-fake-ui-for-media-stream', ^ 
-                      '--use-fake-device-for-media-stream', ^ 
-                      '--allow-file-access-from-files', ^ 
-                      '--enable-usermedia-screen-capturing', ^ 
-                      '--disable-web-security', ^ 
-                      '--autoplay-policy=no-user-gesture-required' ^ 
-                  ] ^ 
-              }); ^ 
-              const page = await browser.newPage(); ^ 
-              await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'); ^ 
-              await page.setViewport({ width: 1280, height: 720 }); ^ 
-              const url = process.env.TARGET_URL; ^ 
-              console.log("Navigating to:", url); ^ 
-              await page.goto(url, { waitUntil: 'networkidle2' }); ^ 
-              try { ^ 
-                  await page.waitForSelector('[aria-label="Accept Cookies"], button:contains("Accept")', { timeout: 5000 }); ^ 
-                  await page.click('[aria-label="Accept Cookies"], button:contains("Accept")'); ^ 
-              } catch (err) { ^ 
-                  console.log('No cookie popup found.'); ^ 
-              } ^ 
-              const mediaHandle = await page.evaluateHandle(() => { ^ 
-                  return document.querySelector('video') || document.querySelector('canvas'); ^ 
-              }); ^ 
-              if (!mediaHandle) { ^ 
-                  console.error('No media element found.'); ^ 
-                  await browser.close(); ^ 
-                  process.exit(1); ^ 
-              } ^ 
-              console.log('Recording started...'); ^ 
-              const exec = require('child_process').exec; ^ 
-              const ffmpegCommand = 'ffmpeg -f gdigrab -framerate 30 -i desktop -t 20 recording.mp4'; ^ 
-              const ffmpegProcess = exec(ffmpegCommand); ^ 
-              await new Promise(resolve => setTimeout(resolve, 20000)); ^ 
-              ffmpegProcess.kill('SIGINT'); ^ 
-              console.log('Recording stopped.'); ^ 
-              await browser.close(); ^ 
-              if (fs.existsSync('recording.mp4')) { ^ 
-                  console.log('Recording saved: recording.mp4'); ^ 
-              } else { ^ 
-                  console.error('Recording failed.'); ^ 
-                  process.exit(1); ^ 
-              } ^ 
-          })(); ^ 
-          > record.js
-          node record.js
-
+        run: node record.js
         env:
           TARGET_URL: ${{ inputs.target_url }}
 
