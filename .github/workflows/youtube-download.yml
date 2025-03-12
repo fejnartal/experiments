@@ -44,20 +44,27 @@ jobs:
               });
 
               const page = await browser.newPage();
-              await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+              await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0');
               await page.setViewport({ width: 1280, height: 720 });
 
               const url = process.env.TARGET_URL;
-              console.log("Navigating to:", url);
+              console.log("Navigating to YouTube login...");
+
               await page.goto('https://accounts.google.com/signin', { waitUntil: 'networkidle2' });
 
-              // Perform YouTube login
+              // Enter email and press Enter
+              await page.waitForSelector('input[type="email"]', { timeout: 10000 });
               await page.type('input[type="email"]', process.env.YT_EMAIL, { delay: 50 });
-              await page.click('#identifierNext');
-              await page.waitForSelector('input[type="password"]', { timeout: 5000 });
+              await page.keyboard.press('Enter');
 
+              // Wait for password field
+              await page.waitForSelector('input[type="password"]', { timeout: 10000 });
               await page.type('input[type="password"]', process.env.YT_PASSWORD, { delay: 50 });
-              await page.click('#passwordNext');
+
+              // Try pressing Enter instead of clicking #passwordNext
+              await page.keyboard.press('Enter');
+
+              // Wait until logged in
               await page.waitForNavigation({ waitUntil: 'networkidle2' });
 
               console.log("Logged into YouTube. Navigating to video...");
