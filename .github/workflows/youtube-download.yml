@@ -1,10 +1,10 @@
-name: Record Webpage Media
+name: Record YouTube Video
 
 on:
   workflow_dispatch:
     inputs:
       target_url:
-        description: "Webpage URL to record"
+        description: "YouTube Video URL"
         required: true
         type: string
 
@@ -33,14 +33,13 @@ jobs:
                   executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
                   headless: false,
                   args: [
-                      '--autoplay-policy=no-user-gesture-required',
+                      '--no-sandbox',
+                      '--disable-setuid-sandbox',
                       '--use-fake-ui-for-media-stream',
                       '--use-fake-device-for-media-stream',
                       '--enable-usermedia-screen-capturing',
-                      '--allow-file-access-from-files',
                       '--disable-web-security',
-                      '--no-sandbox',
-                      '--disable-setuid-sandbox'
+                      '--autoplay-policy=no-user-gesture-required'
                   ]
               });
 
@@ -50,6 +49,19 @@ jobs:
 
               const url = process.env.TARGET_URL;
               console.log("Navigating to:", url);
+              await page.goto('https://accounts.google.com/signin', { waitUntil: 'networkidle2' });
+
+              // Perform YouTube login
+              await page.type('input[type="email"]', process.env.YT_EMAIL, { delay: 50 });
+              await page.click('#identifierNext');
+              await page.waitForTimeout(3000); 
+
+              await page.type('input[type="password"]', process.env.YT_PASSWORD, { delay: 50 });
+              await page.click('#passwordNext');
+              await page.waitForNavigation({ waitUntil: 'networkidle2' });
+
+              console.log("Logged into YouTube. Navigating to video...");
+
               await page.goto(url, { waitUntil: 'networkidle2' });
 
               // Accept cookies if prompted
@@ -60,16 +72,12 @@ jobs:
                   console.log('No cookie popup found.');
               }
 
-              // Find a video element on the page
-              const hasVideo = await page.evaluate(() => {
-                  return !!document.querySelector('video');
-              });
+              console.log('Waiting for video to load...');
+              await page.waitForSelector('video');
 
-              if (!hasVideo) {
-                  console.error('No video element found. Exiting...');
-                  await browser.close();
-                  process.exit(1);
-              }
+              await page.evaluate(() => {
+                  document.querySelector('video').play();
+              });
 
               console.log('Video found! Injecting recording script...');
 
@@ -83,25 +91,9 @@ jobs:
                           }
 
                           const stream = video.captureStream();
-                          const audioCtx = new AudioContext();
-                          const dest = audioCtx.createMediaStreamDestination();
-                          const videoTracks = stream.getVideoTracks();
-                          const audioTracks = [];
-
-                          if (video.mozCaptureStream) {
-                              audioTracks.push(...video.mozCaptureStream().getAudioTracks());
-                          } else {
-                              console.warn('No direct audio capture, using system audio workaround.');
-                          }
-
-                          if (audioTracks.length > 0) {
-                              audioTracks.forEach(track => dest.stream.addTrack(track));
-                              stream.addTrack(dest.stream.getAudioTracks()[0]);
-                          }
-
                           const recorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9,opus' });
-                          const chunks = [];
 
+                          const chunks = [];
                           recorder.ondataavailable = event => chunks.push(event.data);
                           recorder.onstop = () => {
                               const blob = new Blob(chunks, { type: 'video/webm' });
@@ -134,10 +126,12 @@ jobs:
           $script | Set-Content -Path record.js -Encoding utf8
         shell: pwsh
 
-      - name: Run Puppeteer & Record Video
+      - name: Run Puppeteer & Record YouTube Video
         run: node record.js
         env:
           TARGET_URL: ${{ inputs.target_url }}
+          YT_EMAIL: ${{ secrets.YT_EMAIL }}
+          YT_PASSWORD: ${{ secrets.YT_PASSWORD }}
 
       - name: Upload Recording to GitHub Releases
         if: success()
