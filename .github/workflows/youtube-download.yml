@@ -1,137 +1,114 @@
-name: Download YouTube Video
+name: Record Webpage Media
 
 on:
   workflow_dispatch:
     inputs:
-      youtube_url:
-        description: 'URL of the YouTube video to download'
+      target_url:
+        description: "Webpage URL to record"
         required: true
+        type: string
 
 jobs:
-  download_and_release:
+  record:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
-          echo "Starting dependency installation..."
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable xvfb
-          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -fy
-          npm install puppeteer puppeteer-stream xvfb
-          echo "Dependencies installed successfully."
+          sudo apt update
+          sudo apt install -y ffmpeg
+          npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth fs-extra
 
-      - name: Download YouTube video
+      - name: Run Puppeteer & Record Media
         run: |
-          echo "Creating download_video.js script..."
-          cat << 'EOF' > download_video.js
-          const fs = require('fs');
-          const {executablePath} = require('puppeteer');
-          const { launch, getStream } = require('puppeteer-stream');
-          const Xvfb = require('xvfb');
+          cat << 'EOF' > record.js
+          const puppeteer = require('puppeteer-extra');
+          const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+          const fs = require('fs-extra');
 
-          const downloadVideo = async (url) => {
-            console.log("Starting Xvfb...");
-            const xvfb = new Xvfb({
-              silent: true,
-              xvfb_args: ['-screen', '0', '1920x1080x30', '-ac'],
-            });
-            xvfb.start();
+          puppeteer.use(StealthPlugin());
 
-            console.log("Launching Puppeteer...");
-            const browser = await launch({
-              executablePath: executablePath(),
-              defaultViewport: {
-                width: 1080,
-                height: 1920,
-              },
-              args: [
-                '--headless=new',
-                '--no-sandbox',
-                '--window-size=1080,1920',
-                '--disable-setuid-sandbox',
-                '--ozone-override-screen-size=1080,1920',
-              ],
-            });
-            console.log("Puppeteer launched successfully.");
+          (async () => {
+              const browser = await puppeteer.launch({
+                  headless: false,
+                  args: [
+                      '--no-sandbox',
+                      '--disable-setuid-sandbox',
+                      '--use-fake-ui-for-media-stream',
+                      '--use-fake-device-for-media-stream',
+                      '--allow-file-access-from-files',
+                      '--enable-usermedia-screen-capturing',
+                      '--disable-web-security',
+                      '--autoplay-policy=no-user-gesture-required'
+                  ]
+              });
 
-            const page = await browser.newPage();
-            console.log("Navigating to YouTube video: " + url);
-            // await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36')
+              const page = await browser.newPage();
 
-            await page.goto('https://accounts.google.com/signin', {'timeout': 10000, 'waitUntil':'load'});
-            console.log("Logging into YouTube...");
+              // Simulate real user behavior
+              await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+              await page.setViewport({ width: 1280, height: 720 });
 
-            await page.type("input[type='email']", process.env.YT_EMAIL);
-            await page.click("#identifierNext");
+              // Read target URL from environment variable
+              const url = process.env.TARGET_URL;
+              console.log("Navigating to:", url);
+              await page.goto(url, { waitUntil: 'networkidle2' });
 
-            // Wait for the password input to appear
-            await page.waitForSelector("input[type='password']");
-            await page.type("input[type='password']", process.env.YT_PASSWORD);
-            await page.keyboard.press('Enter');
+              // Accept cookies if prompted
+              try {
+                  await page.waitForSelector('[aria-label="Accept Cookies"], button:contains("Accept")', { timeout: 5000 });
+                  await page.click('[aria-label="Accept Cookies"], button:contains("Accept")');
+              } catch (err) {
+                  console.log('No cookie popup found.');
+              }
 
-            console.log("Login successful.");
-            await page.goto(url);
+              // Locate media element (video or canvas)
+              const mediaHandle = await page.evaluateHandle(() => {
+                  return document.querySelector('video') || document.querySelector('canvas');
+              });
 
-            console.log("Starting video stream...");
-            const stream = await getStream(page, { audio: true, video: true });
-            const file = fs.createWriteStream('./downloaded_video.mp4');
-            stream.pipe(file);
+              if (!mediaHandle) {
+                  console.error('No media element found.');
+                  await browser.close();
+                  process.exit(1);
+              }
 
-            console.log("Recording video...");
-            await new Promise(resolve => setTimeout(resolve, 10000)); // Adjust duration
-            console.log("Recording finished.");
+              // Start recording using FFmpeg
+              const recordingPath = 'recording.mp4';
+              const ffmpegCommand = `ffmpeg -f x11grab -video_size 1280x720 -framerate 30 -i :99.0 -t 20 ${recordingPath}`;
 
-            stream.destroy();
-            file.on('finish', async () => {
-              console.log("File stream closed.");
+              console.log('Recording started...');
+              const exec = require('child_process').exec;
+              const ffmpegProcess = exec(ffmpegCommand);
+
+              await new Promise(resolve => setTimeout(resolve, 20000)); // Record for 20 seconds
+
+              ffmpegProcess.kill('SIGINT');
+              console.log('Recording stopped.');
+
               await browser.close();
-              console.log("Browser closed.");
-              xvfb.stop();
-              console.log("Xvfb stopped.");
-              process.exit(0);
-            });
-            file.close();
-          };
 
-          const url = process.argv[2];
-          if (!url) {
-            console.error('Please provide a YouTube URL as an argument.');
-            process.exit(1);
-          }
-
-          console.log("Starting download process...");
-          downloadVideo(url).catch(err => {
-            console.error("Error during video download:", err);
-            process.exit(1);
-          });
+              if (fs.existsSync(recordingPath)) {
+                  console.log('Recording saved:', recordingPath);
+              } else {
+                  console.error('Recording failed.');
+                  process.exit(1);
+              }
+          })();
           EOF
-          echo "download_video.js script created."
-          echo "Executing script..."
-          node download_video.js "${{ github.event.inputs.youtube_url }}"
-        env:
-          DISPLAY: ':99'
 
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-        with:
-          tag_name: 'youtube-video-${{ github.run_id }}'
-          release_name: 'YouTube Video Download ${{ github.run_id }}'
-          draft: false
-          prerelease: false
+          node record.js
 
-      - name: Upload video to Release
-        uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+          TARGET_URL: ${{ inputs.target_url }}
+
+      - name: Upload Recording to GitHub Releases
+        uses: softprops/action-gh-release@v2
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: './downloaded_video.mp4'
-          asset_name: 'downloaded_video.mp4'
-          asset_content_type: 'video/mp4'
+          files: recording.mp4
+          tag_name: latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
