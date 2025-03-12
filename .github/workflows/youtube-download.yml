@@ -10,7 +10,7 @@ on:
 
 jobs:
   record:
-    runs-on: windows-latest  # Use Windows to ensure Chrome is installed
+    runs-on: windows-latest
 
     steps:
       - name: Checkout Repository
@@ -33,14 +33,14 @@ jobs:
                   executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
                   headless: false,
                   args: [
-                      '--no-sandbox',
-                      '--disable-setuid-sandbox',
+                      '--autoplay-policy=no-user-gesture-required',
                       '--use-fake-ui-for-media-stream',
                       '--use-fake-device-for-media-stream',
-                      '--allow-file-access-from-files',
                       '--enable-usermedia-screen-capturing',
+                      '--allow-file-access-from-files',
                       '--disable-web-security',
-                      '--autoplay-policy=no-user-gesture-required'
+                      '--no-sandbox',
+                      '--disable-setuid-sandbox'
                   ]
               });
 
@@ -60,49 +60,90 @@ jobs:
                   console.log('No cookie popup found.');
               }
 
-              // Locate media element (video or canvas)
-              const mediaHandle = await page.evaluateHandle(() => {
-                  return document.querySelector('video') || document.querySelector('canvas');
+              // Find a video element on the page
+              const hasVideo = await page.evaluate(() => {
+                  return !!document.querySelector('video');
               });
 
-              if (!mediaHandle) {
-                  console.error('No media element found.');
+              if (!hasVideo) {
+                  console.error('No video element found. Exiting...');
                   await browser.close();
                   process.exit(1);
               }
 
-              console.log('Recording started...');
-              const exec = require('child_process').exec;
-              const ffmpegCommand = 'ffmpeg -f gdigrab -framerate 30 -i desktop -t 20 recording.mp4';
-              const ffmpegProcess = exec(ffmpegCommand);
+              console.log('Video found! Injecting recording script...');
 
-              await new Promise(resolve => setTimeout(resolve, 20000)); // Record for 20 seconds
+              await page.evaluate(() => {
+                  window.startRecording = () => {
+                      return new Promise((resolve) => {
+                          const video = document.querySelector('video');
+                          if (!video) {
+                              console.error('No video found.');
+                              return;
+                          }
 
-              ffmpegProcess.kill('SIGINT');
-              console.log('Recording stopped.');
+                          const stream = video.captureStream();
+                          const audioCtx = new AudioContext();
+                          const dest = audioCtx.createMediaStreamDestination();
+                          const videoTracks = stream.getVideoTracks();
+                          const audioTracks = [];
 
-              await browser.close();
+                          if (video.mozCaptureStream) {
+                              audioTracks.push(...video.mozCaptureStream().getAudioTracks());
+                          } else {
+                              console.warn('No direct audio capture, using system audio workaround.');
+                          }
 
-              if (fs.existsSync('recording.mp4')) {
-                  console.log('Recording saved: recording.mp4');
-              } else {
+                          if (audioTracks.length > 0) {
+                              audioTracks.forEach(track => dest.stream.addTrack(track));
+                              stream.addTrack(dest.stream.getAudioTracks()[0]);
+                          }
+
+                          const recorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9,opus' });
+                          const chunks = [];
+
+                          recorder.ondataavailable = event => chunks.push(event.data);
+                          recorder.onstop = () => {
+                              const blob = new Blob(chunks, { type: 'video/webm' });
+                              const reader = new FileReader();
+                              reader.onload = () => resolve(reader.result);
+                              reader.readAsArrayBuffer(blob);
+                          };
+
+                          recorder.start();
+                          setTimeout(() => recorder.stop(), 20000);
+                      });
+                  };
+              });
+
+              const videoBuffer = await page.evaluate(() => window.startRecording());
+
+              if (!videoBuffer) {
                   console.error('Recording failed.');
+                  await browser.close();
                   process.exit(1);
               }
+
+              console.log('Recording finished. Saving file...');
+              fs.writeFileSync('recording.webm', Buffer.from(videoBuffer));
+              console.log('Recording saved: recording.webm');
+
+              await browser.close();
           })();
           "@
           $script | Set-Content -Path record.js -Encoding utf8
         shell: pwsh
 
-      - name: Run Puppeteer & Record Media
+      - name: Run Puppeteer & Record Video
         run: node record.js
         env:
           TARGET_URL: ${{ inputs.target_url }}
 
       - name: Upload Recording to GitHub Releases
+        if: success()
         uses: softprops/action-gh-release@v2
         with:
-          files: recording.mp4
+          files: recording.webm
           tag_name: latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
