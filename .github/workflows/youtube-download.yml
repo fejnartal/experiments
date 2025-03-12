@@ -54,7 +54,7 @@ jobs:
               // Perform YouTube login
               await page.type('input[type="email"]', process.env.YT_EMAIL, { delay: 50 });
               await page.click('#identifierNext');
-              await page.waitForTimeout(3000); 
+              await page.waitForSelector('input[type="password"]', { timeout: 5000 });
 
               await page.type('input[type="password"]', process.env.YT_PASSWORD, { delay: 50 });
               await page.click('#passwordNext');
