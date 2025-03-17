@@ -12,21 +12,20 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start;
-            height: 100vh;
             background-color: #f0f0f0;
         }
-        h1 { text-align: center; margin-top: 20px; }
-        #video-container { width: 100%; max-width: 800px; }
+        h1 { text-align: center; margin-top: 10px; }
+        #video-container { width: 100%; max-width: 800px; margin-bottom: 20px; }
         iframe { width: 100%; height: 450px; }
         #timestamp { font-size: 2rem; font-weight: bold; margin: 10px; }
         .controls { display: flex; flex-direction: column; align-items: center; }
         .controls button, .controls input { margin: 5px; padding: 10px; font-size: 16px; }
-        .warning { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px; background: red; color: white; border-radius: 10px; }
-        #error-log { margin-top: 20px; font-size: 14px; background: #ffcccc; padding: 10px; border-radius: 5px; color: #cc0000; display: none; width: 80%; max-width: 800px; }
+        #error-log { display: none; background: #ffcccc; padding: 10px; margin-top: 10px; border-radius: 5px; color: #cc0000; width: 80%; max-width: 800px; }
     </style>
 </head>
 <body>
+
+<div id="video-container"></div>
 
 <h1>Sincronización de Audio con YouTube</h1>
 
@@ -46,14 +45,10 @@
     <button id="copy-errors-button">Copiar Errores</button>
 </div>
 
-<div id="video-container"></div>
-
 <div id="error-log"></div>
 
 <script>
     let videoPlayer;
-    let mediaRecorder;
-    let isRecording = false;
     let videoStartTime = 0;
 
     function logTrace(message) {
@@ -71,8 +66,8 @@
 
     function loadYouTubeVideo(videoId, startTime) {
         if (!videoId) return logTrace("Error: ID de video no válido.");
-        
-        logTrace(`Cargando el video con ID: ${videoId} y marca de tiempo: ${startTime}`);
+
+        logTrace(`Cargando video con ID: ${videoId} y marca de tiempo: ${startTime}`);
 
         let videoContainer = document.getElementById("video-container");
         videoContainer.innerHTML = `<iframe id="video" src="https://www.youtube.com/embed/${videoId}?enablejsapi=1&start=${startTime}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
@@ -81,7 +76,7 @@
         document.getElementById("record-button").disabled = false;
     }
 
-    document.getElementById("load-video").addEventListener("click", function () {
+    function handleVideoLoading() {
         const url = document.getElementById("youtube-url").value;
         const videoId = getYouTubeVideoId(url);
         const timeMatch = url.match(/[?&]t=(\d+)[m]?(\d+)?[s]?/);
@@ -92,7 +87,9 @@
         } else {
             logTrace("URL de YouTube no válida.");
         }
-    });
+    }
+
+    document.getElementById("load-video").addEventListener("click", handleVideoLoading);
 
     function getUrlParams() {
         const params = new URLSearchParams(window.location.search);
