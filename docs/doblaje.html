@@ -79,16 +79,10 @@
 <h1>Sincronización de Audio con YouTube</h1>
 
 <div class="controls">
-    <label for="youtube-search">Buscar Video de YouTube:</label>
-    <input type="text" id="youtube-search" placeholder="Buscar video...">
-    <button id="search-button">Buscar</button>
-    
-    <div>
-        <label for="youtube-url">URL de YouTube:</label>
-        <input type="text" id="youtube-url" placeholder="Pega la URL de YouTube aquí">
-        <button id="load-video">Cargar Video</button>
-    </div>
-    
+    <label for="youtube-url">URL de YouTube:</label>
+    <input type="text" id="youtube-url" placeholder="Pega la URL de YouTube aquí">
+    <button id="load-video">Cargar Video</button>
+
     <button id="play-button" disabled>Reproducir</button>
     <button id="record-button" disabled>Grabar</button>
 
@@ -110,8 +104,6 @@
     <button onclick="closePage()">Cerrar</button>
     <button onclick="cancelClose()">Cancelar</button>
 </div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/id3js/2.0.0/id3.min.js"></script>
 
 <script>
     let videoPlayer;
@@ -149,41 +141,48 @@
     }
 
     function loadYouTubeVideo(videoId) {
-        videoPlayer = new YT.Player('video', {
-            videoId: videoId,
-            events: {
-                'onReady': onPlayerReady,
-                'onStateChange': onPlayerStateChange,
-            }
-        });
-    }
-
-    function onPlayerReady(event) {
-        videoDuration = event.target.getDuration();
+        const videoContainer = document.getElementById("video-container");
+        videoContainer.innerHTML = `
+            <iframe id="video" width="100%" height="450" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+        `;
         document.getElementById("play-button").disabled = false;
         document.getElementById("record-button").disabled = false;
-    }
-
-    function onPlayerStateChange(event) {
-        if (event.data === YT.PlayerState.PLAYING) {
-            isPlaying = true;
-            syncTimestamp();
-        } else if (event.data === YT.PlayerState.ENDED) {
-            stopRecording();
-        }
     }
 
     // Sincronizar la marca de tiempo
     function syncTimestamp() {
         if (isPlaying) {
-            const currentTime = videoPlayer.getCurrentTime();
-            timestampElement.textContent = formatTime(currentTime);
-            if (isRecording) {
-                recordAudio(currentTime);
+            const iframe = document.querySelector("iframe");
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.postMessage('{"event":"command","func":"getCurrentTime","args":""}', '*');
             }
             requestAnimationFrame(syncTimestamp);
         }
     }
+
+    // Obtener el tiempo actual del video en el iframe
+    window.addEventListener("message", function(event) {
+        if (event.origin !== "https://www.youtube.com") return;
+        const data = JSON.parse(event.data);
+        if (data.event === "onStateChange" && data.info === 1) { // Reproducción
+            isPlaying = true;
+            syncTimestamp();
+        }
+        if (data.event === "onStateChange" && data.info === 0) { // Fin del video
+            isPlaying = false;
+        }
+        if (data.event === "onReady") {
+            document.getElementById("play-button").disabled = false;
+            document.getElementById("record-button").disabled = false;
+        }
+        if (data.event === "getCurrentTime") {
+            const currentTime = data.info;
+            timestampElement.textContent = formatTime(currentTime);
+            if (isRecording) {
+                recordAudio(currentTime);
+            }
+        }
+    });
 
     // Formatear el tiempo
     function formatTime(seconds) {
@@ -197,32 +196,6 @@
     function pad(num) {
         return num < 10 ? '0' + num : num;
     }
-
-    // Función para buscar videos de YouTube
-    document.getElementById("search-button").addEventListener("click", function () {
-        const query = document.getElementById("youtube-search").value;
-        const apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${query}&key=YOUR_YOUTUBE_API_KEY`;
-        fetch(apiUrl)
-            .then(response => response.json())
-            .then(data => {
-                const video = data.items[0];
-                const videoUrl = `https://www.youtube.com/watch?v=${video.id.videoId}`;
-                document.getElementById("youtube-url").value = videoUrl;
-                loadYouTubeVideo(video.id.videoId);
-            });
-    });
-
-    // Seleccionar dispositivo de entrada de audio
-    navigator.mediaDevices.enumerateDevices().then(devices => {
-        devices.forEach(device => {
-            if (device.kind === 'audioinput') {
-                const option = document.createElement("option");
-                option.value = device.deviceId;
-                option.text = device.label || `Micrófono ${device.deviceId}`;
-                deviceSelect.appendChild(option);
-            }
-        });
-    });
 
     // Grabar audio
     document.getElementById("record-button").addEventListener("click", function () {
@@ -288,9 +261,9 @@
 
     // Generar URL con marcas de tiempo
     document.getElementById("generate-url-button").addEventListener("click", function () {
-        const startTime = videoPlayer.getCurrentTime();
-        const endTime = startTime + 60; // 1 minuto después, por ejemplo
-        const generatedUrl = `https://www.youtube.com/watch?v=${videoPlayer.getVideoData().video_id}&start=${startTime}&end=${endTime}`;
+        const startTime = 0; // Aquí sería el tiempo de inicio
+        const endTime = 60; // Aquí sería el tiempo de fin
+        const generatedUrl = `https://www.youtube.com/watch?v=${getYouTubeVideoId(document.getElementById("youtube-url").value)}&start=${startTime}&end=${endTime}`;
         document.getElementById("generated-url").value = generatedUrl;
     });
 
@@ -309,8 +282,6 @@
         }
     };
 </script>
-
-<script src="https://www.youtube.com/iframe_api"></script>
 
 </body>
 </html>
