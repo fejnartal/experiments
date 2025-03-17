@@ -153,6 +153,12 @@
                 }
             };
 
+            mediaRecorder.onstop = function() {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                // Llamamos a la función para agregar el audio grabado a la lista
+                addAudioToList(audioBlob);
+            };
+
             mediaRecorder.start();
             isRecording = true;
             document.getElementById("stop-recording-button").disabled = false;
@@ -185,12 +191,6 @@
         playingAudios.forEach(audio => audio.pause());
         playingAudios = [];
     });
-
-    mediaRecorder.onstop = function() {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-        // Llamamos a la función para agregar el audio grabado a la lista
-        addAudioToList(audioBlob);
-    };
 
     // Generación de URL con parámetros para compartir
     document.getElementById("generate-url-button").addEventListener("click", function () {
