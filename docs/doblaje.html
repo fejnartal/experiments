@@ -14,7 +14,7 @@
             align-items: center;
             background-color: #f0f0f0;
         }
-        #video-container { width: 100%; max-width: 800px; position: relative; }
+        #video-container { width: 100%; max-width: 800px; }
         iframe { width: 100%; height: 450px; }
         #controls-container {
             position: sticky;
@@ -53,7 +53,6 @@
         <div id="timestamp">0:00:00.000</div>
         <button id="generate-url-button">Generar URL con marcas de tiempo</button>
         <input type="text" id="generated-url" readonly>
-        <button id="copy-errors-button">Copiar Errores</button>
     </div>
 </div>
 
@@ -64,6 +63,8 @@
     let isRecording = false;
     let audioChunks = [];
     let hideExtraControls = false;
+    let videoId = "";
+    let startTime = 0;
 
     function logTrace(message) {
         console.log(message);
@@ -78,8 +79,10 @@
         return match ? match[1] : null;
     }
 
-    function loadYouTubeVideo(videoId, startTime) {
-        if (!videoId) return logTrace("Error: ID de video no válido.");
+    function loadYouTubeVideo(id, start) {
+        if (!id) return logTrace("Error: ID de video no válido.");
+        videoId = id;
+        startTime = start;
 
         logTrace(`Cargando video con ID: ${videoId} y marca de tiempo: ${startTime}`);
 
@@ -94,24 +97,16 @@
         videoElement.onload = () => {
             logTrace("Video cargado correctamente.");
         };
-
-        // Detectar cuando el video termina para detener la grabación automáticamente
-        window.addEventListener("message", function(event) {
-            if (event.data === '{"event":"onStateChange","info":0}') {
-                logTrace("El video ha terminado.");
-                stopRecording();
-            }
-        }, false);
     }
 
     function handleVideoLoading() {
         const url = document.getElementById("youtube-url").value;
-        const videoId = getYouTubeVideoId(url);
+        const id = getYouTubeVideoId(url);
         const timeMatch = url.match(/[?&]t=(\d+)[m]?(\d+)?[s]?/);
-        const startTime = timeMatch ? (parseInt(timeMatch[1]) || 0) + (parseInt(timeMatch[2] || 0) * 60) : 0;
+        const start = timeMatch ? (parseInt(timeMatch[1]) || 0) + (parseInt(timeMatch[2] || 0) * 60) : 0;
 
-        if (videoId) {
-            loadYouTubeVideo(videoId, startTime);
+        if (id) {
+            loadYouTubeVideo(id, start);
         } else {
             logTrace("URL de YouTube no válida.");
         }
@@ -125,7 +120,7 @@
             return;
         }
 
-        if (!videoElement) {
+        if (!videoId) {
             logTrace("Error: No hay un video cargado.");
             return;
         }
@@ -133,7 +128,7 @@
         try {
             logTrace("Solicitando permiso para el micrófono...");
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            logTrace("Permiso concedido. Iniciando grabación...");
+            logTrace("Permiso concedido. Reiniciando video y comenzando grabación...");
 
             mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
@@ -161,35 +156,34 @@
             isRecording = true;
             document.getElementById("stop-recording-button").disabled = false;
 
-            hideExtraControls = true;
-            document.getElementById("extra-controls").style.opacity = "0";
-
-            videoElement.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
-            logTrace("Video despausado y sincronizado con la grabación.");
+            loadYouTubeVideo(videoId, startTime);
 
         } catch (error) {
             logTrace(`Error al acceder al micrófono: ${error.message}`);
         }
     });
 
-    function stopRecording() {
-        if (isRecording) {
-            mediaRecorder.stop();
-            isRecording = false;
-            logTrace("Grabación detenida manualmente.");
-            videoElement.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
-            hideExtraControls = false;
-            document.getElementById("extra-controls").style.opacity = "1";
-            document.getElementById("stop-recording-button").disabled = true;
+    document.getElementById("generate-url-button").addEventListener("click", function () {
+        if (!videoId) {
+            logTrace("No hay video cargado para generar la URL.");
+            return;
+        }
+        const newUrl = `${window.location.origin}${window.location.pathname}?video=${videoId}&start=${startTime}`;
+        document.getElementById("generated-url").value = newUrl;
+        logTrace(`URL generada: ${newUrl}`);
+    });
+
+    function checkUrlParams() {
+        const params = new URLSearchParams(window.location.search);
+        const id = params.get("video");
+        const start = params.get("start");
+
+        if (id) {
+            loadYouTubeVideo(id, parseInt(start) || 0);
         }
     }
 
-    document.getElementById("stop-recording-button").addEventListener("click", stopRecording);
-
-    window.addEventListener("resize", () => {
-        logTrace("Detectado cambio de orientación.");
-    });
-
+    checkUrlParams();
 </script>
 
 </body>
