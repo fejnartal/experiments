@@ -127,7 +127,7 @@
     let videoElement = document.getElementById("video");
     let timestampElement = document.getElementById("timestamp");
     let deviceSelect = document.getElementById("device-select");
-    
+
     let currentDeviceId = null;
 
     // Cargar video de YouTube
@@ -135,13 +135,7 @@
         const url = document.getElementById("youtube-url").value;
         const videoId = getYouTubeVideoId(url);
         if (videoId) {
-            videoPlayer = new YT.Player('video', {
-                videoId: videoId,
-                events: {
-                    'onReady': onPlayerReady,
-                    'onStateChange': onPlayerStateChange,
-                }
-            });
+            loadYouTubeVideo(videoId);
         } else {
             alert("URL de YouTube no válida.");
         }
@@ -152,6 +146,16 @@
         const regExp = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
         const match = url.match(regExp);
         return match ? match[1] : null;
+    }
+
+    function loadYouTubeVideo(videoId) {
+        videoPlayer = new YT.Player('video', {
+            videoId: videoId,
+            events: {
+                'onReady': onPlayerReady,
+                'onStateChange': onPlayerStateChange,
+            }
+        });
     }
 
     function onPlayerReady(event) {
@@ -204,7 +208,7 @@
                 const video = data.items[0];
                 const videoUrl = `https://www.youtube.com/watch?v=${video.id.videoId}`;
                 document.getElementById("youtube-url").value = videoUrl;
-                document.getElementById("load-video").click();
+                loadYouTubeVideo(video.id.videoId);
             });
     });
 
