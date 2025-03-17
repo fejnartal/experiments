@@ -143,6 +143,7 @@
             loadYouTubeVideo(videoId, startTime);
             setTimeout(() => {
                 videoElement.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', "*");
+                isPlaying = true;
             }, 1000);
         } catch (error) {
             logTrace(`Error al acceder al micrófono: ${error.message}`);
