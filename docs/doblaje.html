@@ -130,7 +130,6 @@
     let videoStartTime = 0;
     let videoDuration = 0;
     let currentAudioIndex = 0;
-    let currentAudio = null;
     let videoElement = document.getElementById("video");
     let timestampElement = document.getElementById("timestamp");
     let deviceSelect = document.getElementById("device-select");
@@ -169,7 +168,16 @@
     function loadYouTubeVideo(videoId) {
         try {
             logTrace(`Cargando el iframe con el video ID: ${videoId}`);
-            const videoContainer = document.getElementById("video-container");
+            let videoContainer = document.getElementById("video-container");
+
+            // Crear el contenedor si no existe
+            if (!videoContainer) {
+                logTrace("Creando contenedor de video...");
+                videoContainer = document.createElement("div");
+                videoContainer.id = "video-container";
+                document.body.appendChild(videoContainer);
+            }
+
             videoContainer.innerHTML = `
                 <iframe id="video" width="100%" height="450" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
             `;
@@ -340,7 +348,6 @@
     }).catch(err => {
         logTrace('Error al obtener dispositivos de entrada: ' + err);
     });
-
 </script>
 
 </body>
