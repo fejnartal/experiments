@@ -45,7 +45,7 @@
     let mediaRecorder, videoElement, player, timestampInterval;
     let isRecording = false, isPlaying = false, audioChunks = [];
     let videoId = "", startTime = 0;
-    
+
     function logTrace(message) {
         console.log(message);
         const errorLog = document.getElementById("error-log");
@@ -163,6 +163,19 @@
             clearInterval(timestampInterval);
             isPlaying = false;
         }
+    });
+
+    // Generación de URL con parámetros para compartir
+    document.getElementById("generate-url-button").addEventListener("click", function () {
+        if (!videoId) return logTrace("Error: No hay un video cargado.");
+
+        const urlParams = new URLSearchParams();
+        urlParams.set("video", videoId);
+        urlParams.set("start", startTime);
+
+        const generatedUrl = window.location.origin + window.location.pathname + "?" + urlParams.toString();
+        document.getElementById("generated-url").value = generatedUrl;
+        logTrace(`URL generada: ${generatedUrl}`);
     });
 
     function checkUrlParams() {
