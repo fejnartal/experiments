@@ -16,6 +16,9 @@
             z-index: 999; /* Asegura que el temporizador esté encima del video */
         }
         #error-log { display: none; background: #ffcccc; padding: 10px; margin-top: 10px; border-radius: 5px; color: #cc0000; }
+        .audio-list { margin-top: 10px; text-align: left; padding: 10px; }
+        .audio-item { margin-bottom: 10px; }
+        .audio-item button { margin-left: 10px; }
     </style>
 </head>
 <body>
@@ -40,10 +43,16 @@
 
 <div id="error-log"></div>
 
+<div class="audio-list" id="audio-list">
+    <h3>Audios grabados:</h3>
+</div>
+
 <script>
     let mediaRecorder, videoElement, timestampInterval;
     let isRecording = false, isPlaying = false, audioChunks = [];
     let videoId = "", startTime = 0;
+    let audioFiles = [];  // Lista para almacenar los audios grabados
+    let playingAudios = []; // Lista de audios que se deben reproducir junto con el video
 
     function logTrace(message) {
         console.log(message);
@@ -116,10 +125,12 @@
 
     document.getElementById("play-button").addEventListener("click", function () {
         if (!videoElement) return logTrace("Error: No hay video cargado.");
-        
+
         videoElement.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', "*");
         isPlaying = true;
         logTrace("Reproduciendo video.");
+        // Reproducir audios seleccionados simultáneamente
+        playingAudios.forEach(audio => audio.play());
         timestampInterval = setInterval(updateTimestamp, 100);
     });
 
@@ -169,6 +180,10 @@
             clearInterval(timestampInterval);
             isPlaying = false;
         }
+
+        // Detener todos los audios reproducidos
+        playingAudios.forEach(audio => audio.pause());
+        playingAudios = [];
     });
 
     // Generación de URL con parámetros para compartir
@@ -183,6 +198,46 @@
         document.getElementById("generated-url").value = generatedUrl;
         logTrace(`URL generada: ${generatedUrl}`);
     });
+
+    function addAudioToList(blob) {
+        const audioUrl = URL.createObjectURL(blob);
+        audioFiles.push(audioUrl);
+
+        const audioListDiv = document.getElementById("audio-list");
+        const audioId = audioFiles.length - 1;
+
+        const audioItem = document.createElement("div");
+        audioItem.classList.add("audio-item");
+        audioItem.innerHTML = `
+            <audio id="audio-${audioId}" controls>
+                <source src="${audioUrl}" type="audio/wav">
+            </audio>
+            <label>
+                <input type="checkbox" id="play-${audioId}" onchange="toggleAudioPlayback(${audioId})"> Reproducir con el video
+            </label>
+            <button onclick="downloadAudio(${audioId})">Descargar</button>
+        `;
+        audioListDiv.appendChild(audioItem);
+    }
+
+    function downloadAudio(audioId) {
+        const link = document.createElement("a");
+        link.href = audioFiles[audioId];
+        link.download = `audio-${audioId}.wav`;
+        link.click();
+    }
+
+    function toggleAudioPlayback(audioId) {
+        const audio = document.getElementById(`audio-${audioId}`);
+        if (document.getElementById(`play-${audioId}`).checked) {
+            playingAudios.push(audio);
+        } else {
+            const index = playingAudios.indexOf(audio);
+            if (index !== -1) {
+                playingAudios.splice(index, 1);
+            }
+        }
+    }
 
     function checkUrlParams() {
         const params = new URLSearchParams(window.location.search);
