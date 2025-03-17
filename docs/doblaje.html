@@ -152,7 +152,7 @@
         const videoId = getYouTubeVideoId(url);
         if (videoId) {
             logTrace(`ID de YouTube extraído: ${videoId}`);
-            loadYouTubeVideo(videoId);
+            loadYouTubeVideo(videoId, url);
         } else {
             logTrace("URL de YouTube no válida.");
             showError("URL de YouTube no válida. Por favor, introduce una URL válida.");
@@ -166,7 +166,7 @@
         return match ? match[1] : null;
     }
 
-    function loadYouTubeVideo(videoId) {
+    function loadYouTubeVideo(videoId, url) {
         try {
             logTrace(`Cargando el iframe con el video ID: ${videoId}`);
             let videoContainer = document.getElementById("video-container");
@@ -179,8 +179,18 @@
                 document.body.insertBefore(videoContainer, document.querySelector(".controls"));
             }
 
+            // Obtener marcas de tiempo
+            const timeMatch = url.match(/[?&]t=(\d+)[m]?(\d+)?[s]?/);
+            const startTime = timeMatch ? (parseInt(timeMatch[1]) || 0) + (parseInt(timeMatch[2] || 0) * 60) : 0;
+
+            // Crear URL de YouTube con la marca de tiempo
+            let videoUrl = `https://www.youtube.com/embed/${videoId}?enablejsapi=1`;
+            if (startTime > 0) {
+                videoUrl += `&start=${startTime}`;
+            }
+
             videoContainer.innerHTML = `
-                <iframe id="video" width="100%" height="450" src="https://www.youtube.com/embed/${videoId}?enablejsapi=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                <iframe id="video" width="100%" height="450" src="${videoUrl}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
             `;
             document.getElementById("play-button").disabled = false;
             document.getElementById("record-button").disabled = false;
@@ -276,6 +286,16 @@
         errorLog.style.display = 'block';
         errorLog.textContent = message;
     }
+
+    // Generar URL con marcas de tiempo y video
+    document.getElementById("generate-url-button").addEventListener("click", function () {
+        const videoUrl = document.getElementById("youtube-url").value;
+        const timeMatch = videoUrl.match(/[?&]t=(\d+)[m]?(\d+)?[s]?/);
+        const startTime = timeMatch ? (parseInt(timeMatch[1]) || 0) + (parseInt(timeMatch[2] || 0) * 60) : 0;
+        let generatedUrl = `${window.location.href.split('?')[0]}?videoUrl=${encodeURIComponent(videoUrl)}&start=${startTime}`;
+        document.getElementById("generated-url").value = generatedUrl;
+        logTrace(`URL generada: ${generatedUrl}`);
+    });
 
     // Obtener dispositivos de entrada
     navigator.mediaDevices.enumerateDevices().then(devices => {
