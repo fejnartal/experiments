@@ -16,74 +16,14 @@
             height: 100vh;
             background-color: #f0f0f0;
         }
-        h1 {
-            text-align: center;
-            margin-top: 20px;
-        }
-        #video-container {
-            position: relative;
-            width: 100%;
-            max-width: 800px;
-            margin-bottom: 20px;
-        }
-        #video {
-            width: 100%;
-            height: 450px;
-        }
-        #timestamp {
-            font-size: 2rem;
-            margin: 10px;
-            font-weight: bold;
-        }
-        .controls {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .controls button {
-            padding: 10px;
-            font-size: 16px;
-            margin: 5px;
-            cursor: pointer;
-        }
-        .controls input[type="checkbox"] {
-            margin-right: 5px;
-        }
-        .audio-list {
-            margin-top: 20px;
-        }
-        .audio-item {
-            display: flex;
-            align-items: center;
-            margin: 5px 0;
-        }
-        .audio-item button {
-            margin-left: 10px;
-        }
-        .warning {
-            display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 20px;
-            background-color: red;
-            color: white;
-            font-size: 20px;
-            border-radius: 10px;
-            z-index: 1000;
-        }
-        #error-log {
-            margin-top: 20px;
-            font-size: 14px;
-            background-color: #ffcccc;
-            padding: 10px;
-            border-radius: 5px;
-            color: #cc0000;
-            width: 80%;
-            max-width: 800px;
-            display: none;
-        }
+        h1 { text-align: center; margin-top: 20px; }
+        #video-container { width: 100%; max-width: 800px; }
+        iframe { width: 100%; height: 450px; }
+        #timestamp { font-size: 2rem; font-weight: bold; margin: 10px; }
+        .controls { display: flex; flex-direction: column; align-items: center; }
+        .controls button, .controls input { margin: 5px; padding: 10px; font-size: 16px; }
+        .warning { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px; background: red; color: white; border-radius: 10px; }
+        #error-log { margin-top: 20px; font-size: 14px; background: #ffcccc; padding: 10px; border-radius: 5px; color: #cc0000; display: none; width: 80%; max-width: 800px; }
     </style>
 </head>
 <body>
@@ -100,44 +40,22 @@
 
     <div id="timestamp">0:00:00.000</div>
 
-    <label for="device-select">Seleccionar dispositivo de entrada:</label>
-    <select id="device-select">
-        <option value="">Seleccionar...</option>
-    </select>
-    
     <button id="generate-url-button">Generar URL con marcas de tiempo</button>
-    <input type="text" id="generated-url" readonly placeholder="URL generada aparecerá aquí">
-    
+    <input type="text" id="generated-url" readonly>
+
     <button id="copy-errors-button">Copiar Errores</button>
 </div>
 
-<div class="audio-list"></div>
-
-<div class="warning" id="warning">
-    <p>¡Atención! Si cierras la página, se perderán los audios grabados. ¿Estás seguro de que deseas salir?</p>
-    <button onclick="closePage()">Cerrar</button>
-    <button onclick="cancelClose()">Cancelar</button>
-</div>
+<div id="video-container"></div>
 
 <div id="error-log"></div>
 
 <script>
     let videoPlayer;
     let mediaRecorder;
-    let audioChunks = [];
-    let recordedAudios = [];
     let isRecording = false;
-    let isPlaying = false;
     let videoStartTime = 0;
-    let videoDuration = 0;
-    let currentAudioIndex = 0;
-    let videoElement = document.getElementById("video");
-    let timestampElement = document.getElementById("timestamp");
-    let deviceSelect = document.getElementById("device-select");
 
-    let currentDeviceId = null;
-
-    // Función para loguear trazas
     function logTrace(message) {
         console.log(message);
         const errorLog = document.getElementById("error-log");
@@ -145,172 +63,73 @@
         errorLog.textContent += `${new Date().toLocaleTimeString()}: ${message}\n`;
     }
 
-    // Cargar video de YouTube
-    document.getElementById("load-video").addEventListener("click", function () {
-        const url = document.getElementById("youtube-url").value;
-        logTrace(`Cargando video con URL: ${url}`);
-        const videoId = getYouTubeVideoId(url);
-        if (videoId) {
-            logTrace(`ID de YouTube extraído: ${videoId}`);
-            loadYouTubeVideo(videoId, url);
-        } else {
-            logTrace("URL de YouTube no válida.");
-            showError("URL de YouTube no válida. Por favor, introduce una URL válida.");
-        }
-    });
-
-    // Obtener el ID del video de YouTube
     function getYouTubeVideoId(url) {
         const regExp = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
         const match = url.match(regExp);
         return match ? match[1] : null;
     }
 
-    function loadYouTubeVideo(videoId, url) {
-        try {
-            logTrace(`Cargando el iframe con el video ID: ${videoId}`);
-            let videoContainer = document.getElementById("video-container");
+    function loadYouTubeVideo(videoId, startTime) {
+        if (!videoId) return logTrace("Error: ID de video no válido.");
+        
+        logTrace(`Cargando el video con ID: ${videoId} y marca de tiempo: ${startTime}`);
 
-            // Crear el contenedor si no existe
-            if (!videoContainer) {
-                logTrace("Creando contenedor de video...");
-                videoContainer = document.createElement("div");
-                videoContainer.id = "video-container";
-                document.body.insertBefore(videoContainer, document.querySelector(".controls"));
-            }
+        let videoContainer = document.getElementById("video-container");
+        videoContainer.innerHTML = `<iframe id="video" src="https://www.youtube.com/embed/${videoId}?enablejsapi=1&start=${startTime}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
 
-            // Obtener marcas de tiempo
-            const timeMatch = url.match(/[?&]t=(\d+)[m]?(\d+)?[s]?/);
-            const startTime = timeMatch ? (parseInt(timeMatch[1]) || 0) + (parseInt(timeMatch[2] || 0) * 60) : 0;
+        document.getElementById("play-button").disabled = false;
+        document.getElementById("record-button").disabled = false;
+    }
 
-            // Crear URL de YouTube con la marca de tiempo
-            let videoUrl = `https://www.youtube.com/embed/${videoId}?enablejsapi=1`;
-            if (startTime > 0) {
-                videoUrl += `&start=${startTime}`;
-            }
+    document.getElementById("load-video").addEventListener("click", function () {
+        const url = document.getElementById("youtube-url").value;
+        const videoId = getYouTubeVideoId(url);
+        const timeMatch = url.match(/[?&]t=(\d+)[m]?(\d+)?[s]?/);
+        const startTime = timeMatch ? (parseInt(timeMatch[1]) || 0) + (parseInt(timeMatch[2] || 0) * 60) : 0;
 
-            videoContainer.innerHTML = `
-                <iframe id="video" width="100%" height="450" src="${videoUrl}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-            `;
-            document.getElementById("play-button").disabled = false;
-            document.getElementById("record-button").disabled = false;
-            logTrace(`Video cargado exitosamente con ID: ${videoId}`);
-        } catch (error) {
-            logTrace(`Error al cargar el video: ${error.message}`);
-            showError(`Error al cargar el video: ${error.message}`);
+        if (videoId) {
+            loadYouTubeVideo(videoId, startTime);
+        } else {
+            logTrace("URL de YouTube no válida.");
+        }
+    });
+
+    function getUrlParams() {
+        const params = new URLSearchParams(window.location.search);
+        return {
+            videoUrl: params.get("videoUrl"),
+            start: params.get("start")
+        };
+    }
+
+    function autoLoadVideo() {
+        const params = getUrlParams();
+        if (params.videoUrl) {
+            document.getElementById("youtube-url").value = params.videoUrl;
+            const videoId = getYouTubeVideoId(params.videoUrl);
+            loadYouTubeVideo(videoId, params.start || 0);
         }
     }
 
-    // Función para reproducir el video
+    document.getElementById("generate-url-button").addEventListener("click", function () {
+        const videoUrl = document.getElementById("youtube-url").value;
+        const timeMatch = videoUrl.match(/[?&]t=(\d+)[m]?(\d+)?[s]?/);
+        const startTime = timeMatch ? (parseInt(timeMatch[1]) || 0) + (parseInt(timeMatch[2] || 0) * 60) : 0;
+
+        const generatedUrl = `${window.location.href.split('?')[0]}?videoUrl=${encodeURIComponent(videoUrl)}&start=${startTime}`;
+        document.getElementById("generated-url").value = generatedUrl;
+        logTrace(`URL generada: ${generatedUrl}`);
+    });
+
     document.getElementById("play-button").addEventListener("click", function () {
-        logTrace("Reproduciendo video...");
         const iframe = document.getElementById("video");
         if (iframe) {
             iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
         }
     });
 
-    // Función para grabar el audio
-    document.getElementById("record-button").addEventListener("click", function () {
-        if (isRecording) {
-            stopRecording();
-        } else {
-            startRecording();
-        }
-    });
+    window.onload = autoLoadVideo;
 
-    function startRecording() {
-        logTrace("Iniciando grabación...");
-        if (currentDeviceId) {
-            navigator.mediaDevices.getUserMedia({ audio: { deviceId: currentDeviceId } }).then(stream => {
-                mediaRecorder = new MediaRecorder(stream);
-                mediaRecorder.ondataavailable = (event) => {
-                    audioChunks.push(event.data);
-                };
-                mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                    const audioUrl = URL.createObjectURL(audioBlob);
-                    recordedAudios.push(audioUrl);
-                    audioChunks = [];
-                    displayAudio(audioUrl);
-                    logTrace("Grabación terminada y audio guardado.");
-                };
-                mediaRecorder.start();
-                isRecording = true;
-            }).catch(err => {
-                logTrace(`Error al acceder al micrófono: ${err}`);
-                showError("Error al acceder al micrófono: " + err);
-            });
-        } else {
-            logTrace("No se ha seleccionado ningún dispositivo de entrada.");
-            showError("No se ha seleccionado ningún dispositivo de entrada.");
-        }
-    }
-
-    function stopRecording() {
-        logTrace("Deteniendo grabación...");
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-            isRecording = false;
-        }
-    }
-
-    function displayAudio(audioUrl) {
-        const audioList = document.querySelector(".audio-list");
-        const audioItem = document.createElement("div");
-        audioItem.classList.add("audio-item");
-        audioItem.innerHTML = `
-            <input type="checkbox" checked>
-            <audio controls src="${audioUrl}"></audio>
-            <button onclick="downloadAudio('${audioUrl}')">Descargar</button>
-        `;
-        audioList.appendChild(audioItem);
-    }
-
-    // Descargar audio con metadatos
-    function downloadAudio(url) {
-        const audioBlob = new Blob([audioChunks], { type: 'audio/wav' });
-        const audioData = audioBlob;
-        const audioUrl = URL.createObjectURL(audioData);
-
-        const a = document.createElement("a");
-        a.href = audioUrl;
-        a.download = "audio_con_metadatos.wav";
-        a.click();
-    }
-
-    // Mostrar errores
-    function showError(message) {
-        logTrace(`Mostrar error: ${message}`);
-        const errorLog = document.getElementById("error-log");
-        errorLog.style.display = 'block';
-        errorLog.textContent = message;
-    }
-
-    // Generar URL con marcas de tiempo y video
-    document.getElementById("generate-url-button").addEventListener("click", function () {
-        const videoUrl = document.getElementById("youtube-url").value;
-        const timeMatch = videoUrl.match(/[?&]t=(\d+)[m]?(\d+)?[s]?/);
-        const startTime = timeMatch ? (parseInt(timeMatch[1]) || 0) + (parseInt(timeMatch[2] || 0) * 60) : 0;
-        let generatedUrl = `${window.location.href.split('?')[0]}?videoUrl=${encodeURIComponent(videoUrl)}&start=${startTime}`;
-        document.getElementById("generated-url").value = generatedUrl;
-        logTrace(`URL generada: ${generatedUrl}`);
-    });
-
-    // Obtener dispositivos de entrada
-    navigator.mediaDevices.enumerateDevices().then(devices => {
-        devices.forEach(device => {
-            if (device.kind === 'audioinput') {
-                const option = document.createElement('option');
-                option.value = device.deviceId;
-                option.textContent = device.label || 'Dispositivo desconocido';
-                deviceSelect.appendChild(option);
-            }
-        });
-        logTrace("Dispositivos de entrada obtenidos.");
-    }).catch(err => {
-        logTrace('Error al obtener dispositivos de entrada: ' + err);
-    });
 </script>
 
 </body>
