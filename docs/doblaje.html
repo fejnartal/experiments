@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplicación de Sincronización de Audio con YouTube</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            text-align: center;
+        }
+        #video-container {
+            position: relative;
+            width: 80%;
+            max-width: 800px;
+            margin-bottom: 20px;
+        }
+        #video {
+            width: 100%;
+            height: 450px;
+        }
+        #timestamp {
+            font-size: 2rem;
+            margin: 10px;
+            font-weight: bold;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .controls button {
+            padding: 10px;
+            font-size: 16px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        .controls input[type="checkbox"] {
+            margin-right: 5px;
+        }
+        .audio-list {
+            margin-top: 20px;
+        }
+        .audio-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .audio-item button {
+            margin-left: 10px;
+        }
+        .warning {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background-color: red;
+            color: white;
+            font-size: 20px;
+            border-radius: 10px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Sincronización de Audio con YouTube</h1>
+
+<div id="video-container">
+    <iframe id="video" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+</div>
+
+<div id="timestamp">0:00:00.000</div>
+
+<div class="controls">
+    <label for="youtube-url">URL de YouTube:</label>
+    <input type="text" id="youtube-url" placeholder="Pega la URL de YouTube aquí">
+    <button id="load-video">Cargar Video</button>
+
+    <button id="play-button">Reproducir</button>
+    <button id="record-button">Grabar</button>
+</div>
+
+<div class="audio-list"></div>
+
+<div class="warning" id="warning">
+    <p>¡Atención! Si cierras la página, se perderán los audios grabados. ¿Estás seguro de que deseas salir?</p>
+    <button onclick="closePage()">Cerrar</button>
+    <button onclick="cancelClose()">Cancelar</button>
+</div>
+
+<script>
+    let videoPlayer;
+    let mediaRecorder;
+    let audioChunks = [];
+    let recordedAudios = [];
+    let currentAudioIndex = 0;
+    let isRecording = false;
+    let isPlaying = false;
+    let videoStartTime = 0;
+    let videoDuration = 0;
+    let currentAudio = null;
+    let videoElement = document.getElementById("video");
+    let timestampElement = document.getElementById("timestamp");
+
+    // Cargar video de YouTube
+    document.getElementById("load-video").addEventListener("click", function () {
+        const url = document.getElementById("youtube-url").value;
+        const videoId = getYouTubeVideoId(url);
+        if (videoId) {
+            videoPlayer = new YT.Player('video', {
+                videoId: videoId,
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange,
+                }
+            });
+        } else {
+            alert("URL de YouTube no válida.");
+        }
+    });
+
+    function getYouTubeVideoId(url) {
+        const regExp = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+        const match = url.match(regExp);
+        return match ? match[1] : null;
+    }
+
+    function onPlayerReady(event) {
+        videoDuration = event.target.getDuration();
+        document.getElementById("play-button").disabled = false;
+        document.getElementById("record-button").disabled = false;
+    }
+
+    function onPlayerStateChange(event) {
+        if (event.data === YT.PlayerState.PLAYING) {
+            isPlaying = true;
+            syncTimestamp();
+        } else if (event.data === YT.PlayerState.ENDED) {
+            stopRecording();
+        }
+    }
+
+    function syncTimestamp() {
+        if (isPlaying) {
+            const currentTime = videoPlayer.getCurrentTime();
+            timestampElement.textContent = formatTime(currentTime);
+            if (isRecording) {
+                recordAudio(currentTime);
+            }
+            requestAnimationFrame(syncTimestamp);
+        }
+    }
+
+    function formatTime(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const sec = Math.floor(seconds % 60);
+        const milliseconds = Math.floor((seconds % 1) * 1000);
+        return `${pad(hours)}:${pad(minutes)}:${pad(sec)}.${milliseconds}`;
+    }
+
+    function pad(num) {
+        return num < 10 ? '0' + num : num;
+    }
+
+    // Grabar audio
+    document.getElementById("record-button").addEventListener("click", function () {
+        if (isRecording) {
+            stopRecording();
+        } else {
+            startRecording();
+        }
+    });
+
+    function startRecording() {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    recordedAudios.push(audioUrl);
+                    audioChunks = [];
+                    displayAudio(audioUrl);
+                };
+                mediaRecorder.start();
+                isRecording = true;
+            }).catch(err => {
+                console.error("Error al acceder al micrófono: ", err);
+            });
+        }
+    }
+
+    function stopRecording() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+            isRecording = false;
+        }
+    }
+
+    function displayAudio(audioUrl) {
+        const audioList = document.querySelector(".audio-list");
+        const audioItem = document.createElement("div");
+        audioItem.classList.add("audio-item");
+        audioItem.innerHTML = `
+            <input type="checkbox" checked>
+            <audio controls src="${audioUrl}"></audio>
+            <button onclick="downloadAudio('${audioUrl}')">Descargar</button>
+        `;
+        audioList.appendChild(audioItem);
+    }
+
+    function downloadAudio(url) {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "audio.wav";
+        a.click();
+    }
+
+    // Reproducir video y audios
+    document.getElementById("play-button").addEventListener("click", function () {
+        if (isPlaying) {
+            videoPlayer.pauseVideo();
+        } else {
+            videoPlayer.playVideo();
+            isPlaying = true;
+            syncTimestamp();
+        }
+    });
+
+    function closePage() {
+        window.close();
+    }
+
+    function cancelClose() {
+        document.getElementById("warning").style.display = "none";
+    }
+
+    // Aviso de cierre de página
+    window.onbeforeunload = function () {
+        if (recordedAudios.length > 0) {
+            return "¡Atención! Si cierras la página, se perderán los audios grabados.";
+        }
+    };
+</script>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+
+</body>
+</html>
