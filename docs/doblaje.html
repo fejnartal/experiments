@@ -5,32 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sincronización de Audio con YouTube</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background-color: #f0f0f0;
-        }
-        #video-container { width: 100%; max-width: 800px; }
+        body { font-family: Arial, sans-serif; text-align: center; background-color: #f0f0f0; }
+        #video-container { width: 100%; max-width: 800px; margin: auto; }
         iframe { width: 100%; height: 450px; }
-        #controls-container {
-            position: sticky;
-            bottom: 0;
-            width: 100%;
-            background: white;
-            display: flex;
-            justify-content: center;
-            padding: 10px;
-            gap: 10px;
-        }
-        #timestamp { font-size: 1.5rem; font-weight: bold; margin-top: 10px; }
-        .controls { display: flex; flex-direction: column; align-items: center; width: 100%; }
-        .controls button { padding: 10px; font-size: 16px; }
-        #extra-controls { transition: opacity 0.3s; }
-        #error-log { display: none; background: #ffcccc; padding: 10px; margin-top: 10px; border-radius: 5px; color: #cc0000; width: 80%; max-width: 800px; }
+        #controls-container { position: sticky; bottom: 0; background: white; padding: 10px; }
+        #timestamp { font-size: 1.5rem; font-weight: bold; margin: 10px; }
+        .controls button { padding: 10px; font-size: 16px; margin: 5px; }
+        #error-log { display: none; background: #ffcccc; padding: 10px; margin-top: 10px; border-radius: 5px; color: #cc0000; }
     </style>
 </head>
 <body>
@@ -45,27 +26,22 @@
 
 <h1>Sincronización de Audio con YouTube</h1>
 
-<div id="extra-controls">
-    <div class="controls">
-        <label for="youtube-url">URL de YouTube:</label>
-        <input type="text" id="youtube-url" placeholder="Pega la URL de YouTube aquí">
-        <button id="load-video">Cargar Video</button>
-        <div id="timestamp">0:00:00.000</div>
-        <button id="generate-url-button">Generar URL con marcas de tiempo</button>
-        <input type="text" id="generated-url" readonly>
-    </div>
+<div>
+    <input type="text" id="youtube-url" placeholder="Pega la URL de YouTube aquí">
+    <button id="load-video">Cargar Video</button>
+    <div id="timestamp">0:00:00.000</div>
+    <button id="generate-url-button">Generar URL</button>
+    <input type="text" id="generated-url" readonly>
 </div>
 
 <div id="error-log"></div>
 
 <script>
-    let mediaRecorder, videoElement;
+    let mediaRecorder, videoElement, player;
     let isRecording = false;
     let audioChunks = [];
-    let hideExtraControls = false;
-    let videoId = "";
-    let startTime = 0;
-
+    let videoId = "", startTime = 0;
+    
     function logTrace(message) {
         console.log(message);
         const errorLog = document.getElementById("error-log");
@@ -84,7 +60,7 @@
         videoId = id;
         startTime = start;
 
-        logTrace(`Cargando video con ID: ${videoId} y marca de tiempo: ${startTime}`);
+        logTrace(`Cargando video con ID: ${videoId} y tiempo: ${startTime}`);
 
         let videoContainer = document.getElementById("video-container");
         videoContainer.innerHTML = `<iframe id="video" src="https://www.youtube.com/embed/${videoId}?enablejsapi=1&start=${startTime}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
@@ -93,13 +69,9 @@
 
         document.getElementById("play-button").disabled = false;
         document.getElementById("record-button").disabled = false;
-
-        videoElement.onload = () => {
-            logTrace("Video cargado correctamente.");
-        };
     }
 
-    function handleVideoLoading() {
+    document.getElementById("load-video").addEventListener("click", function () {
         const url = document.getElementById("youtube-url").value;
         const id = getYouTubeVideoId(url);
         const timeMatch = url.match(/[?&]t=(\d+)[m]?(\d+)?[s]?/);
@@ -110,20 +82,19 @@
         } else {
             logTrace("URL de YouTube no válida.");
         }
-    }
+    });
 
-    document.getElementById("load-video").addEventListener("click", handleVideoLoading);
+    document.getElementById("play-button").addEventListener("click", function () {
+        if (!videoElement) return logTrace("Error: No hay video cargado.");
+        
+        videoElement.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', "*");
+        logTrace("Reproduciendo video.");
+    });
 
     document.getElementById("record-button").addEventListener("click", async function () {
-        if (isRecording) {
-            logTrace("Ya hay una grabación en curso.");
-            return;
-        }
+        if (isRecording) return logTrace("Ya hay una grabación en curso.");
 
-        if (!videoId) {
-            logTrace("Error: No hay un video cargado.");
-            return;
-        }
+        if (!videoId) return logTrace("Error: No hay un video cargado.");
 
         try {
             logTrace("Solicitando permiso para el micrófono...");
@@ -157,17 +128,31 @@
             document.getElementById("stop-recording-button").disabled = false;
 
             loadYouTubeVideo(videoId, startTime);
+            setTimeout(() => {
+                videoElement.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', "*");
+            }, 1000);
 
         } catch (error) {
             logTrace(`Error al acceder al micrófono: ${error.message}`);
         }
     });
 
-    document.getElementById("generate-url-button").addEventListener("click", function () {
-        if (!videoId) {
-            logTrace("No hay video cargado para generar la URL.");
-            return;
+    document.getElementById("stop-recording-button").addEventListener("click", function () {
+        if (isRecording) {
+            mediaRecorder.stop();
+            isRecording = false;
+            document.getElementById("stop-recording-button").disabled = true;
         }
+
+        if (videoElement) {
+            videoElement.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', "*");
+            logTrace("Pausando video.");
+        }
+    });
+
+    document.getElementById("generate-url-button").addEventListener("click", function () {
+        if (!videoId) return logTrace("No hay video cargado para generar la URL.");
+
         const newUrl = `${window.location.origin}${window.location.pathname}?video=${videoId}&start=${startTime}`;
         document.getElementById("generated-url").value = newUrl;
         logTrace(`URL generada: ${newUrl}`);
