@@ -48,8 +48,9 @@
 <div id="error-log"></div>
 
 <script>
-    let videoPlayer;
-    let videoStartTime = 0;
+    let mediaRecorder;
+    let isRecording = false;
+    let audioChunks = [];
 
     function logTrace(message) {
         console.log(message);
@@ -91,42 +92,72 @@
 
     document.getElementById("load-video").addEventListener("click", handleVideoLoading);
 
-    function getUrlParams() {
-        const params = new URLSearchParams(window.location.search);
-        return {
-            videoUrl: params.get("videoUrl"),
-            start: params.get("start")
-        };
-    }
-
-    function autoLoadVideo() {
-        const params = getUrlParams();
-        if (params.videoUrl) {
-            document.getElementById("youtube-url").value = params.videoUrl;
-            const videoId = getYouTubeVideoId(params.videoUrl);
-            loadYouTubeVideo(videoId, params.start || 0);
+    document.getElementById("record-button").addEventListener("click", async function () {
+        if (isRecording) {
+            logTrace("Ya hay una grabación en curso.");
+            return;
         }
-    }
 
-    document.getElementById("generate-url-button").addEventListener("click", function () {
-        const videoUrl = document.getElementById("youtube-url").value;
-        const timeMatch = videoUrl.match(/[?&]t=(\d+)[m]?(\d+)?[s]?/);
-        const startTime = timeMatch ? (parseInt(timeMatch[1]) || 0) + (parseInt(timeMatch[2] || 0) * 60) : 0;
+        const iframe = document.getElementById("video");
+        if (!iframe) {
+            logTrace("Error: No hay un video cargado.");
+            return;
+        }
 
-        const generatedUrl = `${window.location.href.split('?')[0]}?videoUrl=${encodeURIComponent(videoUrl)}&start=${startTime}`;
-        document.getElementById("generated-url").value = generatedUrl;
-        logTrace(`URL generada: ${generatedUrl}`);
+        try {
+            logTrace("Solicitando permiso para el micrófono...");
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            logTrace("Permiso concedido. Iniciando grabación...");
+
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = event => {
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                logTrace("Grabación detenida.");
+                const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+                const audioUrl = URL.createObjectURL(audioBlob);
+                
+                const a = document.createElement("a");
+                a.href = audioUrl;
+                a.download = "grabacion.wav";
+                a.textContent = "Descargar Grabación";
+                document.body.appendChild(a);
+                logTrace("Grabación lista para descargar.");
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+            logTrace("Grabación iniciada correctamente.");
+
+            iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+            logTrace("Video despausado y sincronizado con la grabación.");
+
+        } catch (error) {
+            logTrace(`Error al acceder al micrófono: ${error.message}`);
+        }
     });
 
     document.getElementById("play-button").addEventListener("click", function () {
         const iframe = document.getElementById("video");
         if (iframe) {
             iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+            logTrace("Se ha reproducido el video.");
         }
     });
 
-    window.onload = autoLoadVideo;
-
+    window.onload = function() {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has("videoUrl")) {
+            document.getElementById("youtube-url").value = params.get("videoUrl");
+            loadYouTubeVideo(getYouTubeVideoId(params.get("videoUrl")), params.get("start") || 0);
+        }
+    };
 </script>
 
 </body>
