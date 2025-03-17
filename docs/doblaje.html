@@ -41,7 +41,7 @@
 <div id="error-log"></div>
 
 <script>
-    let mediaRecorder, videoElement, player, timestampInterval;
+    let mediaRecorder, videoElement, timestampInterval;
     let isRecording = false, isPlaying = false, audioChunks = [];
     let videoId = "", startTime = 0;
 
@@ -82,16 +82,22 @@
     function updateTimestamp() {
         if (!videoElement) return;
 
+        // Enviar comando para obtener el tiempo actual del video
         videoElement.contentWindow.postMessage('{"event":"command","func":"getCurrentTime","args":""}', "*");
+    }
+
+    function formatTime(seconds) {
+        let minutes = Math.floor(seconds / 60);
+        let remainingSeconds = Math.floor(seconds % 60);
+        let milliseconds = Math.floor((seconds % 1) * 1000);
+        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}.${milliseconds}`;
     }
 
     window.addEventListener("message", (event) => {
         if (event.data && event.data.event === "infoDelivery" && event.data.info && typeof event.data.info.currentTime === "number") {
             let time = event.data.info.currentTime;
-            let minutes = Math.floor(time / 60);
-            let seconds = Math.floor(time % 60);
-            let milliseconds = Math.floor((time % 1) * 1000);
-            document.getElementById("timestamp").textContent = `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds}`;
+            // Actualizar el temporizador con el tiempo formateado
+            document.getElementById("timestamp").textContent = formatTime(time);
         }
     });
 
