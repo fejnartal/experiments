@@ -6,17 +6,22 @@
     <title>Sincronización de Audio con YouTube</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background-color: #f0f0f0; }
-        #video-container { width: 100%; max-width: 800px; margin: auto; }
+        #video-container { width: 100%; max-width: 800px; margin: auto; position: relative; }
         iframe { width: 100%; height: 450px; }
         #controls-container { position: sticky; bottom: 0; background: white; padding: 10px; }
-        #timestamp { font-size: 1.5rem; font-weight: bold; margin: 10px; }
         .controls button { padding: 10px; font-size: 16px; margin: 5px; }
+        #timestamp { 
+            font-size: 2rem; font-weight: bold; color: white; background: rgba(0, 0, 0, 0.5);
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%); padding: 5px 10px;
+        }
         #error-log { display: none; background: #ffcccc; padding: 10px; margin-top: 10px; border-radius: 5px; color: #cc0000; }
     </style>
 </head>
 <body>
 
-<div id="video-container"></div>
+<div id="video-container">
+    <div id="timestamp">0:00:00.000</div>
+</div>
 
 <div id="controls-container">
     <button id="play-button" disabled>Reproducir</button>
@@ -29,7 +34,6 @@
 <div>
     <input type="text" id="youtube-url" placeholder="Pega la URL de YouTube aquí">
     <button id="load-video">Cargar Video</button>
-    <div id="timestamp">0:00:00.000</div>
     <button id="generate-url-button">Generar URL</button>
     <input type="text" id="generated-url" readonly>
 </div>
@@ -37,9 +41,8 @@
 <div id="error-log"></div>
 
 <script>
-    let mediaRecorder, videoElement, player;
-    let isRecording = false;
-    let audioChunks = [];
+    let mediaRecorder, videoElement, player, timestampInterval;
+    let isRecording = false, isPlaying = false, audioChunks = [];
     let videoId = "", startTime = 0;
     
     function logTrace(message) {
@@ -63,13 +66,32 @@
         logTrace(`Cargando video con ID: ${videoId} y tiempo: ${startTime}`);
 
         let videoContainer = document.getElementById("video-container");
-        videoContainer.innerHTML = `<iframe id="video" src="https://www.youtube.com/embed/${videoId}?enablejsapi=1&start=${startTime}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+        videoContainer.innerHTML = `
+            <iframe id="video" src="https://www.youtube.com/embed/${videoId}?enablejsapi=1&start=${startTime}" 
+                frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+        `;
 
         videoElement = document.getElementById("video");
 
         document.getElementById("play-button").disabled = false;
         document.getElementById("record-button").disabled = false;
     }
+
+    function updateTimestamp() {
+        if (!videoElement) return;
+
+        videoElement.contentWindow.postMessage('{"event":"command","func":"getCurrentTime","args":""}', "*");
+    }
+
+    window.addEventListener("message", (event) => {
+        if (event.data && event.data.event === "infoDelivery" && event.data.info && typeof event.data.info.currentTime === "number") {
+            let time = event.data.info.currentTime;
+            let minutes = Math.floor(time / 60);
+            let seconds = Math.floor(time % 60);
+            let milliseconds = Math.floor((time % 1) * 1000);
+            document.getElementById("timestamp").textContent = `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds}`;
+        }
+    });
 
     document.getElementById("load-video").addEventListener("click", function () {
         const url = document.getElementById("youtube-url").value;
@@ -88,7 +110,9 @@
         if (!videoElement) return logTrace("Error: No hay video cargado.");
         
         videoElement.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', "*");
+        isPlaying = true;
         logTrace("Reproduciendo video.");
+        timestampInterval = setInterval(updateTimestamp, 100);
     });
 
     document.getElementById("record-button").addEventListener("click", async function () {
@@ -110,19 +134,6 @@
                 }
             };
 
-            mediaRecorder.onstop = () => {
-                logTrace("Grabación detenida.");
-                const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
-                const audioUrl = URL.createObjectURL(audioBlob);
-
-                const a = document.createElement("a");
-                a.href = audioUrl;
-                a.download = "grabacion.wav";
-                a.textContent = "Descargar Grabación";
-                document.body.appendChild(a);
-                logTrace("Grabación lista para descargar.");
-            };
-
             mediaRecorder.start();
             isRecording = true;
             document.getElementById("stop-recording-button").disabled = false;
@@ -131,7 +142,6 @@
             setTimeout(() => {
                 videoElement.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', "*");
             }, 1000);
-
         } catch (error) {
             logTrace(`Error al acceder al micrófono: ${error.message}`);
         }
@@ -144,18 +154,12 @@
             document.getElementById("stop-recording-button").disabled = true;
         }
 
-        if (videoElement) {
+        if (isPlaying) {
             videoElement.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', "*");
             logTrace("Pausando video.");
+            clearInterval(timestampInterval);
+            isPlaying = false;
         }
-    });
-
-    document.getElementById("generate-url-button").addEventListener("click", function () {
-        if (!videoId) return logTrace("No hay video cargado para generar la URL.");
-
-        const newUrl = `${window.location.origin}${window.location.pathname}?video=${videoId}&start=${startTime}`;
-        document.getElementById("generated-url").value = newUrl;
-        logTrace(`URL generada: ${newUrl}`);
     });
 
     function checkUrlParams() {
