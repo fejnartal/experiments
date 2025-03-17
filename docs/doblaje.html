@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aplicación de Sincronización de Audio con YouTube</title>
+    <title>Sincronización de Audio con YouTube</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -78,19 +78,29 @@
 
 <h1>Sincronización de Audio con YouTube</h1>
 
-<div id="video-container">
-    <iframe id="video" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-</div>
-
-<div id="timestamp">0:00:00.000</div>
-
 <div class="controls">
-    <label for="youtube-url">URL de YouTube:</label>
-    <input type="text" id="youtube-url" placeholder="Pega la URL de YouTube aquí">
-    <button id="load-video">Cargar Video</button>
+    <label for="youtube-search">Buscar Video de YouTube:</label>
+    <input type="text" id="youtube-search" placeholder="Buscar video...">
+    <button id="search-button">Buscar</button>
+    
+    <div>
+        <label for="youtube-url">URL de YouTube:</label>
+        <input type="text" id="youtube-url" placeholder="Pega la URL de YouTube aquí">
+        <button id="load-video">Cargar Video</button>
+    </div>
+    
+    <button id="play-button" disabled>Reproducir</button>
+    <button id="record-button" disabled>Grabar</button>
 
-    <button id="play-button">Reproducir</button>
-    <button id="record-button">Grabar</button>
+    <div id="timestamp">0:00:00.000</div>
+
+    <label for="device-select">Seleccionar dispositivo de entrada:</label>
+    <select id="device-select">
+        <option value="">Seleccionar...</option>
+    </select>
+    
+    <button id="generate-url-button">Generar URL con marcas de tiempo</button>
+    <input type="text" id="generated-url" readonly placeholder="URL generada aparecerá aquí">
 </div>
 
 <div class="audio-list"></div>
@@ -101,19 +111,24 @@
     <button onclick="cancelClose()">Cancelar</button>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/id3js/2.0.0/id3.min.js"></script>
+
 <script>
     let videoPlayer;
     let mediaRecorder;
     let audioChunks = [];
     let recordedAudios = [];
-    let currentAudioIndex = 0;
     let isRecording = false;
     let isPlaying = false;
     let videoStartTime = 0;
     let videoDuration = 0;
+    let currentAudioIndex = 0;
     let currentAudio = null;
     let videoElement = document.getElementById("video");
     let timestampElement = document.getElementById("timestamp");
+    let deviceSelect = document.getElementById("device-select");
+    
+    let currentDeviceId = null;
 
     // Cargar video de YouTube
     document.getElementById("load-video").addEventListener("click", function () {
@@ -132,6 +147,7 @@
         }
     });
 
+    // Obtener el ID del video de YouTube
     function getYouTubeVideoId(url) {
         const regExp = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
         const match = url.match(regExp);
@@ -153,6 +169,7 @@
         }
     }
 
+    // Sincronizar la marca de tiempo
     function syncTimestamp() {
         if (isPlaying) {
             const currentTime = videoPlayer.getCurrentTime();
@@ -164,6 +181,7 @@
         }
     }
 
+    // Formatear el tiempo
     function formatTime(seconds) {
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
@@ -176,6 +194,32 @@
         return num < 10 ? '0' + num : num;
     }
 
+    // Función para buscar videos de YouTube
+    document.getElementById("search-button").addEventListener("click", function () {
+        const query = document.getElementById("youtube-search").value;
+        const apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${query}&key=YOUR_YOUTUBE_API_KEY`;
+        fetch(apiUrl)
+            .then(response => response.json())
+            .then(data => {
+                const video = data.items[0];
+                const videoUrl = `https://www.youtube.com/watch?v=${video.id.videoId}`;
+                document.getElementById("youtube-url").value = videoUrl;
+                document.getElementById("load-video").click();
+            });
+    });
+
+    // Seleccionar dispositivo de entrada de audio
+    navigator.mediaDevices.enumerateDevices().then(devices => {
+        devices.forEach(device => {
+            if (device.kind === 'audioinput') {
+                const option = document.createElement("option");
+                option.value = device.deviceId;
+                option.text = device.label || `Micrófono ${device.deviceId}`;
+                deviceSelect.appendChild(option);
+            }
+        });
+    });
+
     // Grabar audio
     document.getElementById("record-button").addEventListener("click", function () {
         if (isRecording) {
@@ -186,8 +230,8 @@
     });
 
     function startRecording() {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        if (currentDeviceId) {
+            navigator.mediaDevices.getUserMedia({ audio: { deviceId: currentDeviceId } }).then(stream => {
                 mediaRecorder = new MediaRecorder(stream);
                 mediaRecorder.ondataavailable = (event) => {
                     audioChunks.push(event.data);
@@ -226,22 +270,24 @@
         audioList.appendChild(audioItem);
     }
 
+    // Descargar audio con metadatos
     function downloadAudio(url) {
+        const audioBlob = new Blob([audioChunks], { type: 'audio/wav' });
+        const audioData = audioBlob;
+        const audioUrl = URL.createObjectURL(audioData);
+
         const a = document.createElement("a");
-        a.href = url;
-        a.download = "audio.wav";
+        a.href = audioUrl;
+        a.download = "audio_con_metadatos.wav";
         a.click();
     }
 
-    // Reproducir video y audios
-    document.getElementById("play-button").addEventListener("click", function () {
-        if (isPlaying) {
-            videoPlayer.pauseVideo();
-        } else {
-            videoPlayer.playVideo();
-            isPlaying = true;
-            syncTimestamp();
-        }
+    // Generar URL con marcas de tiempo
+    document.getElementById("generate-url-button").addEventListener("click", function () {
+        const startTime = videoPlayer.getCurrentTime();
+        const endTime = startTime + 60; // 1 minuto después, por ejemplo
+        const generatedUrl = `https://www.youtube.com/watch?v=${videoPlayer.getVideoData().video_id}&start=${startTime}&end=${endTime}`;
+        document.getElementById("generated-url").value = generatedUrl;
     });
 
     function closePage() {
@@ -252,7 +298,7 @@
         document.getElementById("warning").style.display = "none";
     }
 
-    // Aviso de cierre de página
+    // Aviso al cerrar la página
     window.onbeforeunload = function () {
         if (recordedAudios.length > 0) {
             return "¡Atención! Si cierras la página, se perderán los audios grabados.";
