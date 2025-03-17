@@ -72,6 +72,17 @@
             border-radius: 10px;
             z-index: 1000;
         }
+        #error-log {
+            margin-top: 20px;
+            font-size: 14px;
+            background-color: #ffcccc;
+            padding: 10px;
+            border-radius: 5px;
+            color: #cc0000;
+            width: 80%;
+            max-width: 800px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -95,6 +106,8 @@
     
     <button id="generate-url-button">Generar URL con marcas de tiempo</button>
     <input type="text" id="generated-url" readonly placeholder="URL generada aparecerá aquí">
+    
+    <button id="copy-errors-button">Copiar Errores</button>
 </div>
 
 <div class="audio-list"></div>
@@ -104,6 +117,8 @@
     <button onclick="closePage()">Cerrar</button>
     <button onclick="cancelClose()">Cancelar</button>
 </div>
+
+<div id="error-log"></div>
 
 <script>
     let videoPlayer;
@@ -129,7 +144,7 @@
         if (videoId) {
             loadYouTubeVideo(videoId);
         } else {
-            alert("URL de YouTube no válida.");
+            showError("URL de YouTube no válida. Por favor, introduce una URL válida.");
         }
     });
 
@@ -223,8 +238,10 @@
                 mediaRecorder.start();
                 isRecording = true;
             }).catch(err => {
-                console.error("Error al acceder al micrófono: ", err);
+                showError("Error al acceder al micrófono: " + err);
             });
+        } else {
+            showError("No se ha seleccionado ningún dispositivo de entrada.");
         }
     }
 
@@ -281,6 +298,43 @@
             return "¡Atención! Si cierras la página, se perderán los audios grabados.";
         }
     };
+
+    // Mostrar errores
+    function showError(message) {
+        console.error(message);
+        const errorLog = document.getElementById("error-log");
+        errorLog.style.display = 'block';
+        errorLog.textContent = message;
+    }
+
+    // Copiar errores al portapapeles
+    document.getElementById("copy-errors-button").addEventListener("click", function () {
+        const errorLog = document.getElementById("error-log");
+        if (errorLog.style.display === 'block') {
+            navigator.clipboard.writeText(errorLog.textContent).then(function() {
+                alert('Errores copiados al portapapeles');
+            }).catch(function(err) {
+                console.error('Error al copiar al portapapeles:', err);
+            });
+        } else {
+            alert('No hay errores para copiar');
+        }
+    });
+
+    // Obtener dispositivos de entrada
+    navigator.mediaDevices.enumerateDevices().then(devices => {
+        devices.forEach(device => {
+            if (device.kind === 'audioinput') {
+                const option = document.createElement('option');
+                option.value = device.deviceId;
+                option.textContent = device.label || 'Dispositivo desconocido';
+                deviceSelect.appendChild(option);
+            }
+        });
+    }).catch(err => {
+        showError('Error al obtener dispositivos de entrada: ' + err);
+    });
+
 </script>
 
 </body>
