@@ -186,6 +186,12 @@
         playingAudios = [];
     });
 
+    mediaRecorder.onstop = function() {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        // Llamamos a la función para agregar el audio grabado a la lista
+        addAudioToList(audioBlob);
+    };
+
     // Generación de URL con parámetros para compartir
     document.getElementById("generate-url-button").addEventListener("click", function () {
         if (!videoId) return logTrace("Error: No hay un video cargado.");
