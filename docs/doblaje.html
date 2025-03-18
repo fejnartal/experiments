@@ -39,7 +39,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.28 - 2025-03-18</footer>
+<footer>Versión 1.0.29 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -219,20 +219,25 @@
             const delay = (startTime - currentTime) * 1000; // Convertimos a milisegundos
             console.log(`Calculated trigger in ${delay} millis.`);
 
-            if (delay >= 0) {
-                triggers.push({ audio: recording.audio, timeToPlay: delay });
-            }
+            triggers.push({ audio: recording.audio, timeToPlay: delay });
         });
     }
 
     function executeTriggers() {
         triggers.forEach((trigger) => {
             console.log(`Scheduled trigger in ${trigger.timeToPlay} millis.`);
-            setTimeout(() => {
-                console.log(`Triggering audio after ${trigger.timeToPlay} millis.`);
-                trigger.audio.currentTime = 0;
-                trigger.audio.play().catch(error => console.warn("Reproducción bloqueada:", error));
-            }, trigger.timeToPlay);
+            if (trigger.timeToPlay >= 0) {
+                setTimeout(() => {
+                    console.log(`Triggering audio after ${trigger.timeToPlay} millis.`);
+                    trigger.audio.currentTime = 0;
+                    trigger.audio.play().catch(error => console.warn("Reproducción bloqueada:", error));
+                }, trigger.timeToPlay);
+            } else if (trigger.audio.duration > -trigger.timeToPlay) {
+                trigger.audio.currentTime = -trigger.timeToPlay;
+                if (trigger.audio.paused) {
+                    trigger.audio.play().catch(error => console.warn("Reproducción bloqueada:", error));;
+                }
+            }
         });
     }
 
