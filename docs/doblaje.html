@@ -46,7 +46,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.22 - 2025-03-18</footer>
+<footer>Versión 1.0.23 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -109,7 +109,7 @@
             finalStream = new MediaStream([...videoStream.getVideoTracks(), ...stream.getAudioTracks()]);
 
             mediaRecorder = new MediaRecorder(finalStream, {
-                mimeType: "video/webm"
+                mimeType: "video/webm",
                 videoBitsPerSecond: 2500000 // Ajusta el bitrate para calidad óptima
             });
 
