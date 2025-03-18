@@ -46,7 +46,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.25 - 2025-03-18</footer>
+<footer>Versión 1.0.26 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -113,7 +113,7 @@
                 videoBitsPerSecond: 2500000 // Ajusta el bitrate para calidad óptima
             });
 
-            mediaRecorder.ondataavailable = event => {
+            mediaRecorder.ondataavailable = async event => {
                 if (event.data.size > 0) {
                     await addVideoToList(event.data, lastPlayTimestamp);
                 }
