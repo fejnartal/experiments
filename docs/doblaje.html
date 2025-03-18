@@ -39,7 +39,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.5 - 2025-03-18</footer>
+<footer>Versión 1.0.6 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -151,6 +151,8 @@
     }
 
     function addAudioToList(audioBlob, timestamp) {
+        // Convertir el timestamp a milisegundos antes de almacenarlo (si es necesario)
+        const timestampInMilliseconds = Math.floor(timestamp * 1000); // Convertir a milisegundos
         const url = URL.createObjectURL(audioBlob);
         const list = document.getElementById("recording-list");
 
@@ -162,7 +164,7 @@
         audio.src = url;
 
         const timestampLabel = document.createElement("span");
-        timestampLabel.textContent = `(${formatTime(timestamp)})`;
+        timestampLabel.textContent = `(${formatTime(timestampInMilliseconds / 1000)})`; // Mostrar en formato minutos:segundos
 
         const downloadButton = document.createElement("a");
         downloadButton.href = url;
@@ -174,7 +176,8 @@
         listItem.appendChild(downloadButton);
         list.appendChild(listItem);
 
-        recordings.push({ audio, timestamp });
+        // Almacenamos el timestamp en milisegundos
+        recordings.push({ audio, timestamp: timestampInMilliseconds });
     }
 
     function formatTime(seconds) {
@@ -184,12 +187,14 @@
     }
 
     function syncRecordedAudios() {
-        let currentTimestamp = player.getCurrentTime();
+        let currentTimestamp = player.getCurrentTime() * 1000; // Obtener el tiempo actual en milisegundos
         recordings.forEach((recording) => {
             if (!recording.audio.paused) return;
-            const diff = currentTimestamp - (recording.timestamp / 1000); // Converting ms to seconds
+        
+            // Calculamos la diferencia de tiempo en milisegundos
+            const diff = currentTimestamp - recording.timestamp; // Ambos están en milisegundos
             if (diff >= 0) {
-                recording.audio.currentTime = diff;
+                recording.audio.currentTime = diff / 1000; // Convertimos la diferencia a segundos
                 recording.audio.play();
             }
         });
