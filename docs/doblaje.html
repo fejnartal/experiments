@@ -40,7 +40,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.19 - 2025-03-18</footer>
+<footer>Versión 1.0.20 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -95,7 +95,7 @@
             // Mezclar el video del canvas con el audio del micrófono
             finalStream = new MediaStream([...videoStream.getVideoTracks(), ...stream.getAudioTracks()]);
 
-            mediaRecorder = new MediaRecorder(finalStream, { mimeType: "video/webm" });
+            mediaRecorder = new MediaRecorder(finalStream, { mimeType: "video/mp4" });
 
             mediaRecorder.ondataavailable = event => {
                 if (event.data.size > 0) {
@@ -159,7 +159,7 @@
 
     function onPlayerStateChange(event) {
         if (event.data === YT.PlayerState.PLAYING) {
-            console.log("El video ha comenzado a reproducirse.");
+            consourrentTimele.log("El video ha comenzado a reproducirse.");
             lastPlayTimestamp = player.getCurrentTime();
 
             if (isCountdownActive) {
@@ -202,7 +202,7 @@
 
         const downloadButton = document.createElement("a");
         downloadButton.href = url;
-        downloadButton.download = `grabacion-${recordings.length + 1}.webm`;
+        downloadButton.download = `grabacion-${recordings.length + 1}.mp4`;
         downloadButton.textContent = "Descargar";
 
         listItem.appendChild(video);
@@ -227,16 +227,20 @@
             const delay = (recording.timestamp - currentTime) * 1000;
             console.log(`Calculated trigger in ${delay} millis.`);
             if (delay >= 0) {
-                triggers.push({ video: recording.video, timeout: setTimeout(() => {
-                    recording.video.currentTime = 0;
-                    recording.video.play().catch(error => console.warn("Reproducción bloqueada:", error));
-                }, delay) });
+                triggers.push({ video: recording.video, timeToPlay: delay });
             }
         });
     }
 
     function executeTriggers() {
-        triggers.forEach(trigger => trigger.timeout);
+        triggers.forEach((trigger) => {
+            console.log(`Scheduled trigger in ${trigger.timeToPlay} millis.`);
+            setTimeout(() => {
+                console.log(`Triggering video after ${trigger.timeToPlay} millis.`);
+                trigger.video.currentTime = 0;
+                trigger.video.play().catch(error => console.warn("Reproducción bloqueada:", error));
+            }, trigger.timeToPlay);
+        });
     }
 
     document.getElementById("load-video").addEventListener("click", function () {
