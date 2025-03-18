@@ -9,8 +9,7 @@
         body { font-family: Arial, sans-serif; text-align: center; background-color: #f0f0f0; }
         #video-container { width: 100%; max-width: 800px; margin: auto; position: relative; }
         iframe { width: 100%; height: 450px; }
-        #controls-container { position: sticky; bottom: 0; background: white; padding: 10px; }
-        .controls button { padding: 10px; font-size: 16px; margin: 5px; }
+        #controls-container { margin-top: 10px; }
         #timestamp { 
             font-size: 2rem; font-weight: bold; color: white; background: rgba(0, 0, 0, 0.5);
             position: absolute; top: 10px; left: 50%; transform: translateX(-50%); padding: 5px 10px;
@@ -26,8 +25,6 @@
 <div id="video-container"></div>
 
 <div id="controls-container">
-    <button id="record-button" disabled>Grabar</button>
-    <button id="stop-recording-button" disabled>Detener</button>
     <label>
         <input type="checkbox" id="disable-recording"> Deshabilitar grabación
     </label>
@@ -75,35 +72,15 @@
                 "onStateChange": onPlayerStateChange
             }
         });
-
-        document.getElementById("record-button").disabled = false;
-    }
-
-    function onPlayerStateChange(event) {
-        const disableRecordingCheckbox = document.getElementById("disable-recording");
-
-        if (event.data === YT.PlayerState.PLAYING) {
-            logTrace("El video ha comenzado a reproducirse.");
-            disableRecordingCheckbox.disabled = true; // Bloqueamos el checkbox mientras el video se reproduce
-
-            if (!disableRecordingCheckbox.checked) {
-                startRecording();
-            }
-
-            playSyncedRecordings();
-        } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
-            logTrace("El video se ha pausado o terminado.");
-            disableRecordingCheckbox.disabled = false; // Desbloqueamos el checkbox
-            stopRecording();
-            stopAllRecordings();
-        }
     }
 
     async function startRecording() {
         if (isRecording) return logTrace("Ya hay una grabación en curso.");
 
         try {
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            if (!stream) {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            }
             mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
             currentRecordingStartTime = player.getCurrentTime(); // Guardamos el timestamp del video
@@ -114,9 +91,12 @@
                 }
             };
 
+            mediaRecorder.onstop = () => {
+                addAudioToList();
+            };
+
             mediaRecorder.start();
             isRecording = true;
-            document.getElementById("stop-recording-button").disabled = false;
         } catch (error) {
             logTrace(`Error al acceder al micrófono: ${error.message}`);
         }
@@ -126,12 +106,12 @@
         if (isRecording) {
             mediaRecorder.stop();
             isRecording = false;
-            document.getElementById("stop-recording-button").disabled = true;
-            addAudioToList();
         }
     }
 
     function addAudioToList() {
+        if (audioChunks.length === 0) return;
+
         const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
         const audioUrl = URL.createObjectURL(audioBlob);
         const timestamp = currentRecordingStartTime;
@@ -188,6 +168,26 @@
 
     function stopAllRecordings() {
         document.querySelectorAll("audio").forEach(audio => audio.pause());
+    }
+
+    function onPlayerStateChange(event) {
+        const disableRecordingCheckbox = document.getElementById("disable-recording");
+
+        if (event.data === YT.PlayerState.PLAYING) {
+            logTrace("El video ha comenzado a reproducirse.");
+            disableRecordingCheckbox.disabled = true;
+
+            if (!disableRecordingCheckbox.checked) {
+                startRecording();
+            }
+
+            playSyncedRecordings();
+        } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
+            logTrace("El video se ha pausado o terminado.");
+            disableRecordingCheckbox.disabled = false;
+            stopRecording();
+            stopAllRecordings();
+        }
     }
 
     document.getElementById("load-video").addEventListener("click", function () {
