@@ -185,8 +185,9 @@
     function syncRecordedAudios() {
         let currentTimestamp = player.getCurrentTime();
         recordings.forEach((recording) => {
+            if (recording.audio.playing) return;
             const diff = currentTimestamp - (recording.timestamp / 1000); // Converting ms to seconds
-            if (diff >= 0 && !recording.audio.playing) {
+            if (diff >= 0) {
                 recording.audio.currentTime = diff;
                 recording.audio.play();
             }
