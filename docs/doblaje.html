@@ -39,7 +39,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.16 - 2025-03-18</footer>
+<footer>Versión 1.0.17 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -109,8 +109,10 @@
         });
 
         // Eliminar todos los triggers programados
-        triggers.forEach((trigger) => clearTimeout(trigger));
-        triggers = [];
+        if (!isCountdownActive) {
+            triggers.forEach((trigger) => clearTimeout(trigger));
+            triggers = [];
+        }
     }
 
     function showCountdown(callbackBefore, callbackAfter) {
