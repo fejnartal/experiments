@@ -39,7 +39,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.4 - 2025-03-18</footer>
+<footer>Versión 1.0.5 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -185,7 +185,7 @@
     function syncRecordedAudios() {
         let currentTimestamp = player.getCurrentTime();
         recordings.forEach((recording) => {
-            if (recording.audio.playing) return;
+            if (!recording.audio.paused) return;
             const diff = currentTimestamp - (recording.timestamp / 1000); // Converting ms to seconds
             if (diff >= 0) {
                 recording.audio.currentTime = diff;
