@@ -39,7 +39,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.9 - 2025-03-18</footer>
+<footer>Versión 1.0.10 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -231,7 +231,7 @@
         triggers.forEach((trigger) => {
             setTimeout(() => {
                 trigger.audio.play();
-            }, trigger.timeToPlay * 1000);
+            }, Math.floor(trigger.timeToPlay * 1000));
         });
     }
 
