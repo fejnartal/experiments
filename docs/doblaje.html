@@ -46,7 +46,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.24 - 2025-03-18</footer>
+<footer>Versión 1.0.25 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -115,7 +115,7 @@
 
             mediaRecorder.ondataavailable = event => {
                 if (event.data.size > 0) {
-                    addVideoToList(event.data, lastPlayTimestamp);
+                    await addVideoToList(event.data, lastPlayTimestamp);
                 }
             };
             console.log("MediaRecorder listo.");
@@ -201,7 +201,7 @@
         }
     }
 
-    function addVideoToList(videoBlob, timestamp) {
+    async function addVideoToList(videoBlob, timestamp) {
         const url = URL.createObjectURL(videoBlob);
         const list = document.getElementById("recording-list");
 
