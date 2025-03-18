@@ -39,7 +39,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.14 - 2025-03-18</footer>
+<footer>Versión 1.0.15 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -142,6 +142,7 @@
             lastPlayTimestamp = player.getCurrentTime();
 
             if (isCountdownActive) {
+                isCountdownActive = false;
                 return;
             }
 
@@ -155,7 +156,6 @@
                 startRecording();
                 executeTriggers(); // Ejecutar los triggers después del countdown
                 player.playVideo();
-                isCountdownActive = false;
             });
 
         } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
