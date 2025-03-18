@@ -9,7 +9,6 @@
         body { font-family: Arial, sans-serif; text-align: center; background-color: #f0f0f0; }
         #video-container { width: 100%; max-width: 800px; margin: auto; position: relative; }
         iframe { width: 100%; height: 450px; }
-        #controls-container { margin-top: 10px; }
         #timestamp { 
             font-size: 2rem; font-weight: bold; color: white; background: rgba(0, 0, 0, 0.5);
             position: absolute; top: 10px; left: 50%; transform: translateX(-50%); padding: 5px 10px;
@@ -17,6 +16,12 @@
         }
         #recordings-list { margin-top: 20px; }
         .recording-item { margin-bottom: 10px; }
+        #countdown-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8); color: white; display: flex;
+            justify-content: center; align-items: center; font-size: 5rem;
+            font-weight: bold; display: none; z-index: 1000;
+        }
     </style>
 </head>
 <body>
@@ -40,6 +45,8 @@
 <h2>Grabaciones</h2>
 <div id="recordings-list"></div>
 
+<div id="countdown-overlay"></div>
+
 <script>
     let player;
     let mediaRecorder, stream;
@@ -47,6 +54,7 @@
     let audioChunks = [];
     let recordings = [];
     let currentRecordingStartTime = 0;
+    let lastPlayTimestamp = 0;
 
     function logTrace(message) {
         console.log(message);
@@ -74,16 +82,13 @@
         });
     }
 
-    async function startRecording() {
-        if (isRecording) return logTrace("Ya hay una grabación en curso.");
-
+    async function prepareRecording() {
         try {
             if (!stream) {
                 stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             }
             mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
-            currentRecordingStartTime = player.getCurrentTime(); // Guardamos el timestamp del video
 
             mediaRecorder.ondataavailable = event => {
                 if (event.data.size > 0) {
@@ -95,11 +100,18 @@
                 addAudioToList();
             };
 
-            mediaRecorder.start();
-            isRecording = true;
+            logTrace("MediaRecorder listo.");
         } catch (error) {
             logTrace(`Error al acceder al micrófono: ${error.message}`);
         }
+    }
+
+    function startRecording() {
+        if (isRecording) return logTrace("Ya hay una grabación en curso.");
+        
+        currentRecordingStartTime = lastPlayTimestamp; // Guardamos el timestamp del video
+        mediaRecorder.start();
+        isRecording = true;
     }
 
     function stopRecording() {
@@ -140,20 +152,29 @@
             document.body.removeChild(a);
         };
 
-        const playCheckbox = document.createElement("input");
-        playCheckbox.type = "checkbox";
-        playCheckbox.checked = true;
-        playCheckbox.onchange = () => {
-            if (!playCheckbox.checked) {
-                audioElement.pause();
-            }
-        };
-
         div.appendChild(timestampLabel);
         div.appendChild(audioElement);
         div.appendChild(downloadButton);
-        div.appendChild(playCheckbox);
         recordingsList.appendChild(div);
+    }
+
+    function showCountdown(callback) {
+        const countdownOverlay = document.getElementById("countdown-overlay");
+        countdownOverlay.style.display = "flex";
+        
+        let countdown = 3;
+        countdownOverlay.textContent = countdown;
+
+        const countdownInterval = setInterval(() => {
+            countdown--;
+            countdownOverlay.textContent = countdown;
+
+            if (countdown === 0) {
+                clearInterval(countdownInterval);
+                countdownOverlay.style.display = "none";
+                callback();
+            }
+        }, 1000);
     }
 
     function playSyncedRecordings() {
@@ -177,11 +198,21 @@
             logTrace("El video ha comenzado a reproducirse.");
             disableRecordingCheckbox.disabled = true;
 
-            if (!disableRecordingCheckbox.checked) {
-                startRecording();
-            }
+            lastPlayTimestamp = player.getCurrentTime();
+            player.pauseVideo();
 
-            playSyncedRecordings();
+            showCountdown(async () => {
+                await prepareRecording();
+                player.seekTo(lastPlayTimestamp, true);
+                player.playVideo();
+
+                if (!disableRecordingCheckbox.checked) {
+                    startRecording();
+                }
+
+                playSyncedRecordings();
+            });
+
         } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
             logTrace("El video se ha pausado o terminado.");
             disableRecordingCheckbox.disabled = false;
