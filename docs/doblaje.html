@@ -116,7 +116,6 @@
             if (countdown === 0) {
                 clearInterval(countdownInterval);
                 countdownOverlay.style.display = "none";
-                isCountdownActive = false;
                 callback();
             }
         }, 1000);
