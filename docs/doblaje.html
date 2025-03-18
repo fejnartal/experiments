@@ -219,6 +219,20 @@
             }, trigger.timeToPlay);
         });
     }
+
+    document.getElementById("load-video").addEventListener("click", function () {
+         const url = document.getElementById("youtube-url").value;
+         const videoId = getYouTubeVideoId(url);
+         if (videoId) {
+             loadYouTubeVideo(videoId);
+         } else {
+             console.error("URL de YouTube no válida.");
+         }
+     });
+ 
+     document.getElementById("disable-recording").addEventListener("change", function () {
+         disableRecording = this.checked;
+     });
 </script>
 
 </body>
