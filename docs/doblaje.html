@@ -40,7 +40,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.20 - 2025-03-18</footer>
+<footer>Versión 1.0.21 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -159,7 +159,7 @@
 
     function onPlayerStateChange(event) {
         if (event.data === YT.PlayerState.PLAYING) {
-            consourrentTimele.log("El video ha comenzado a reproducirse.");
+            console.log("El video ha comenzado a reproducirse.");
             lastPlayTimestamp = player.getCurrentTime();
 
             if (isCountdownActive) {
