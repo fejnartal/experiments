@@ -39,7 +39,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.7 - 2025-03-18</footer>
+<footer>Versión 1.0.8 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -201,7 +201,7 @@
         if (player && player.getPlayerState() === YT.PlayerState.PLAYING) {
             syncRecordedAudios();
         }
-    }, 100); // Sync audio every 100 ms
+    }, 10); // Sync audio every 10 ms
 
     document.getElementById("load-video").addEventListener("click", function () {
         const url = document.getElementById("youtube-url").value;
