@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sincronización de Audio con YouTube</title>
+    <title>Sincronización de Grabaciones con YouTube</title>
     <script src="https://www.youtube.com/iframe_api"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background-color: #f0f0f0; }
@@ -17,6 +17,7 @@
         }
         #recording-list { margin-top: 20px; text-align: left; }
         .recording-item { display: flex; align-items: center; gap: 10px; }
+        canvas { display: none; } /* Ocultamos el canvas */
     </style>
 </head>
 <body>
@@ -39,11 +40,11 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.17 - 2025-03-18</footer>
+<footer>Versión 1.0.19 - 2025-03-18</footer>
 
 <script>
     let player;
-    let mediaRecorder, stream;
+    let mediaRecorder, stream, videoStream, finalStream;
     let isRecording = false;
     let isCountdownActive = false;
     let lastPlayTimestamp = 0;
@@ -77,10 +78,28 @@
             if (!stream) {
                 stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             }
-            mediaRecorder = new MediaRecorder(stream);
+
+            // Crear un canvas oculto de 1x1 píxel para el video
+            const canvas = document.createElement("canvas");
+            canvas.width = 1280;
+            canvas.height = 720;
+            const ctx = canvas.getContext("2d");
+
+            // Pintar un fondo negro en el canvas (sin mostrarlo)
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Capturar el video del canvas
+            videoStream = canvas.captureStream(30); // 30 FPS
+
+            // Mezclar el video del canvas con el audio del micrófono
+            finalStream = new MediaStream([...videoStream.getVideoTracks(), ...stream.getAudioTracks()]);
+
+            mediaRecorder = new MediaRecorder(finalStream, { mimeType: "video/webm" });
+
             mediaRecorder.ondataavailable = event => {
                 if (event.data.size > 0) {
-                    addAudioToList(event.data, lastPlayTimestamp);
+                    addVideoToList(event.data, lastPlayTimestamp);
                 }
             };
             console.log("MediaRecorder listo.");
@@ -101,10 +120,10 @@
             isRecording = false;
         }
 
-        // Pausar todos los audios activos
+        // Pausar todos los videos activos
         recordings.forEach((recording) => {
-            if (!recording.audio.paused) {
-                recording.audio.pause();
+            if (!recording.video.paused) {
+                recording.video.pause();
             }
         });
 
@@ -153,7 +172,7 @@
             showCountdown(async () => {
                 await prepareRecording();
                 player.seekTo(lastPlayTimestamp, true);
-                scheduleAudioTriggers(); // Ahora sí lo llamamos aquí
+                scheduleVideoTriggers(); // Ahora sí lo llamamos aquí
             }, () => {
                 startRecording();
                 executeTriggers(); // Ejecutar los triggers después del countdown
@@ -166,31 +185,32 @@
         }
     }
 
-    function addAudioToList(audioBlob, timestamp) {
-        const url = URL.createObjectURL(audioBlob);
+    function addVideoToList(videoBlob, timestamp) {
+        const url = URL.createObjectURL(videoBlob);
         const list = document.getElementById("recording-list");
 
         const listItem = document.createElement("li");
         listItem.classList.add("recording-item");
 
-        const audio = document.createElement("audio");
-        audio.controls = true;
-        audio.src = url;
+        const video = document.createElement("video");
+        video.controls = true;
+        video.src = url;
+        video.style.display = "none"; // Ocultamos el video
 
         const timestampLabel = document.createElement("span");
         timestampLabel.textContent = `(${formatTime(timestamp)})`; // Mostrar en formato minutos:segundos
 
         const downloadButton = document.createElement("a");
         downloadButton.href = url;
-        downloadButton.download = `grabacion-${recordings.length + 1}.wav`;
+        downloadButton.download = `grabacion-${recordings.length + 1}.webm`;
         downloadButton.textContent = "Descargar";
 
-        listItem.appendChild(audio);
+        listItem.appendChild(video);
         listItem.appendChild(timestampLabel);
         listItem.appendChild(downloadButton);
         list.appendChild(listItem);
 
-        recordings.push({ audio: audio, timestamp: timestamp });
+        recordings.push({ video, timestamp });
     }
 
     function formatTime(seconds) {
@@ -198,46 +218,40 @@
         const sec = Math.floor(seconds % 60);
         return `${minutes}:${sec.toString().padStart(2, '0')}`;
     }
-    
-    function scheduleAudioTriggers() {
+
+    function scheduleVideoTriggers() {
         const currentTime = player.getCurrentTime();
         triggers = [];
 
         recordings.forEach((recording) => {
-            const startTime = recording.timestamp;
-            const delay = (startTime - currentTime) * 1000; // Convertimos a milisegundos
+            const delay = (recording.timestamp - currentTime) * 1000;
             console.log(`Calculated trigger in ${delay} millis.`);
-
             if (delay >= 0) {
-                triggers.push({ audio: recording.audio, timeToPlay: delay });
+                triggers.push({ video: recording.video, timeout: setTimeout(() => {
+                    recording.video.currentTime = 0;
+                    recording.video.play().catch(error => console.warn("Reproducción bloqueada:", error));
+                }, delay) });
             }
         });
     }
 
     function executeTriggers() {
-        triggers.forEach((trigger) => {
-            console.log(`Scheduled trigger in ${trigger.timeToPlay} millis.`);
-            setTimeout(() => {
-                console.log(`Triggering audio after ${trigger.timeToPlay} millis.`);
-                trigger.audio.currentTime = 0;
-                trigger.audio.play().catch(error => console.warn("Reproducción bloqueada:", error));
-            }, trigger.timeToPlay);
-        });
+        triggers.forEach(trigger => trigger.timeout);
     }
 
     document.getElementById("load-video").addEventListener("click", function () {
-         const url = document.getElementById("youtube-url").value;
-         const videoId = getYouTubeVideoId(url);
-         if (videoId) {
-             loadYouTubeVideo(videoId);
-         } else {
-             console.error("URL de YouTube no válida.");
-         }
-     });
- 
-     document.getElementById("disable-recording").addEventListener("change", function () {
-         disableRecording = this.checked;
-     });
+        const url = document.getElementById("youtube-url").value;
+        const videoId = getYouTubeVideoId(url);
+        if (videoId) {
+            loadYouTubeVideo(videoId);
+        } else {
+            console.error("URL de YouTube no válida.");
+        }
+    });
+
+    document.getElementById("disable-recording").addEventListener("change", function () {
+        disableRecording = this.checked;
+    });
 </script>
 
 </body>
