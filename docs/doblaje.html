@@ -39,7 +39,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.29 - 2025-03-18</footer>
+<footer>Versión 1.0.30 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -225,8 +225,11 @@
 
     function executeTriggers() {
         triggers.forEach((trigger) => {
-            console.log(`Scheduled trigger in ${trigger.timeToPlay} millis.`);
+            console.log(`trigger.audio.duration is ${trigger.audio.duration} seconds.`);
+            console.log(`trigger.timeToPlay is ${trigger.timeToPlay} millis.`);
+
             if (trigger.timeToPlay >= 0) {
+                console.log(`Scheduled trigger in ${trigger.timeToPlay} millis.`);
                 setTimeout(() => {
                     console.log(`Triggering audio after ${trigger.timeToPlay} millis.`);
                     trigger.audio.currentTime = 0;
