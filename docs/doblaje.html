@@ -55,6 +55,7 @@
     let recordings = [];
     let currentRecordingStartTime = 0;
     let lastPlayTimestamp = 0;
+    let ignoreNextStateChange = false; // Nueva variable para evitar bucles
 
     function logTrace(message) {
         console.log(message);
@@ -109,7 +110,7 @@
     function startRecording() {
         if (isRecording) return logTrace("Ya hay una grabación en curso.");
         
-        currentRecordingStartTime = lastPlayTimestamp; // Guardamos el timestamp del video
+        currentRecordingStartTime = lastPlayTimestamp;
         mediaRecorder.start();
         isRecording = true;
     }
@@ -192,6 +193,11 @@
     }
 
     function onPlayerStateChange(event) {
+        if (ignoreNextStateChange) {
+            ignoreNextStateChange = false;
+            return;
+        }
+
         const disableRecordingCheckbox = document.getElementById("disable-recording");
 
         if (event.data === YT.PlayerState.PLAYING) {
@@ -203,6 +209,7 @@
 
             showCountdown(async () => {
                 await prepareRecording();
+                ignoreNextStateChange = true; // Evitar que la siguiente reproducción dispare otra cuenta atrás
                 player.seekTo(lastPlayTimestamp, true);
                 player.playVideo();
 
