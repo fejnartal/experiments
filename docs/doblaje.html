@@ -39,6 +39,8 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
+<footer>Versión 1.0.4 - 2025-03-18</footer>
+
 <script>
     let player;
     let mediaRecorder, stream;
@@ -179,6 +181,23 @@
         const sec = Math.floor(seconds % 60);
         return `${minutes}:${sec.toString().padStart(2, '0')}`;
     }
+
+    function syncRecordedAudios() {
+        let currentTimestamp = player.getCurrentTime();
+        recordings.forEach((recording) => {
+            const diff = currentTimestamp - (recording.timestamp / 1000); // Converting ms to seconds
+            if (diff >= 0 && !recording.audio.playing) {
+                recording.audio.currentTime = diff;
+                recording.audio.play();
+            }
+        });
+    }
+
+    setInterval(() => {
+        if (player && player.getPlayerState() === YT.PlayerState.PLAYING) {
+            syncRecordedAudios();
+        }
+    }, 100); // Sync audio every 100 ms
 
     document.getElementById("load-video").addEventListener("click", function () {
         const url = document.getElementById("youtube-url").value;
