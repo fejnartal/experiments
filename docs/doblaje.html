@@ -99,6 +99,7 @@
             mediaRecorder.stop();
             isRecording = false;
         }
+        recordings.forEach((recording) => { recording.audio.pause(); });
     }
 
     function showCountdown(callback) {
