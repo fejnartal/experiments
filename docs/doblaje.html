@@ -204,7 +204,8 @@
         recordings.forEach((recording) => {
             const startTime = recording.timestamp;
             const delay = (startTime - currentTime) * 1000; // Convertimos a milisegundos
-            
+            console.log(`Calculated trigger in ${delay} millis.`);
+
             if (delay >= 0) {
                 triggers.push({ audio: recording.audio, timeToPlay: delay });
             }
@@ -213,7 +214,9 @@
 
     function executeTriggers() {
         triggers.forEach((trigger) => {
+            console.log(`Scheduled trigger in ${trigger.timeToPlay} millis.`);
             setTimeout(() => {
+                console.log(`Triggering audio after ${trigger.timeToPlay} millis.`);
                 trigger.audio.currentTime = 0;
                 trigger.audio.play().catch(error => console.warn("Reproducción bloqueada:", error));
             }, trigger.timeToPlay);
