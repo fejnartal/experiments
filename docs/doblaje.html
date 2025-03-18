@@ -46,7 +46,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.23 - 2025-03-18</footer>
+<footer>Versión 1.0.24 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -222,6 +222,7 @@
         downloadButton.textContent = "Descargar";
 
         listItem.appendChild(video);
+        await calculateMediaDuration(video);
         listItem.appendChild(timestampLabel);
         listItem.appendChild(downloadButton);
         list.appendChild(listItem);
@@ -270,6 +271,27 @@
     document.getElementById("disable-recording").addEventListener("change", function () {
         disableRecording = this.checked;
     });
+
+    // https://stackoverflow.com/questions/38443084/how-can-i-add-predefined-length-to-audio-recorded-from-mediarecorder-in-chrome/39971175#39971175
+    async function calculateMediaDuration(media) {
+        await new Promise((resolve, reject) => {
+            media.onloadedmetadata = resolve;
+            media.onerror = () => reject(new Error("Error al cargar los metadatos del archivo multimedia."));
+        });
+
+        media.currentTime = Number.MAX_SAFE_INTEGER;
+
+        await new Promise((resolve) => {
+            media.ontimeupdate = () => {
+                media.ontimeupdate = null;
+                media.currentTime = 0.1;
+                media.currentTime = 0;
+                resolve();
+            };
+        });
+
+        return media.duration;
+    }
 </script>
 
 </body>
