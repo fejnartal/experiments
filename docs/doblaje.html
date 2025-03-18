@@ -9,13 +9,6 @@
         body { font-family: Arial, sans-serif; text-align: center; background-color: #f0f0f0; }
         #video-container { width: 100%; max-width: 800px; margin: auto; position: relative; }
         iframe { width: 100%; height: 450px; }
-        #timestamp { 
-            font-size: 2rem; font-weight: bold; color: white; background: rgba(0, 0, 0, 0.5);
-            position: absolute; top: 10px; left: 50%; transform: translateX(-50%); padding: 5px 10px;
-            z-index: 999;
-        }
-        #recordings-list { margin-top: 20px; }
-        .recording-item { margin-bottom: 10px; }
         #countdown-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.8); color: white; display: flex;
@@ -26,24 +19,12 @@
 </head>
 <body>
 
-<div id="timestamp">0:00:00.000</div>
 <div id="video-container"></div>
-
-<div id="controls-container">
-    <label>
-        <input type="checkbox" id="disable-recording"> Deshabilitar grabación
-    </label>
-</div>
-
-<h1>Sincronización de Audio con YouTube</h1>
 
 <div>
     <input type="text" id="youtube-url" placeholder="Pega la URL de YouTube aquí">
     <button id="load-video">Cargar Video</button>
 </div>
-
-<h2>Grabaciones</h2>
-<div id="recordings-list"></div>
 
 <div id="countdown-overlay"></div>
 
@@ -51,15 +32,9 @@
     let player;
     let mediaRecorder, stream;
     let isRecording = false;
-    let audioChunks = [];
-    let recordings = [];
-    let currentRecordingStartTime = 0;
+    let isCountdownActive = false; // Nueva variable para evitar bucles
     let lastPlayTimestamp = 0;
-    let ignoreNextStateChange = false; // Nueva variable para evitar bucles
-
-    function logTrace(message) {
-        console.log(message);
-    }
+    let ignoreNextStateChange = false;
 
     function getYouTubeVideoId(url) {
         const regExp = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -67,16 +42,15 @@
         return match ? match[1] : null;
     }
 
-    function loadYouTubeVideo(videoId, startTime) {
-        if (!videoId) return logTrace("Error: ID de video no válido.");
-        
+    function loadYouTubeVideo(videoId) {
+        if (!videoId) return console.error("Error: ID de video no válido.");
+
         document.getElementById("video-container").innerHTML = `<div id="player"></div>`;
 
         player = new YT.Player("player", {
             height: "450",
             width: "100%",
             videoId: videoId,
-            playerVars: { start: startTime },
             events: {
                 "onStateChange": onPlayerStateChange
             }
@@ -89,28 +63,19 @@
                 stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             }
             mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-
             mediaRecorder.ondataavailable = event => {
                 if (event.data.size > 0) {
-                    audioChunks.push(event.data);
+                    console.log("Grabación guardada.");
                 }
             };
-
-            mediaRecorder.onstop = () => {
-                addAudioToList();
-            };
-
-            logTrace("MediaRecorder listo.");
+            console.log("MediaRecorder listo.");
         } catch (error) {
-            logTrace(`Error al acceder al micrófono: ${error.message}`);
+            console.error(`Error al acceder al micrófono: ${error.message}`);
         }
     }
 
     function startRecording() {
-        if (isRecording) return logTrace("Ya hay una grabación en curso.");
-        
-        currentRecordingStartTime = lastPlayTimestamp;
+        if (isRecording) return;
         mediaRecorder.start();
         isRecording = true;
     }
@@ -122,47 +87,13 @@
         }
     }
 
-    function addAudioToList() {
-        if (audioChunks.length === 0) return;
-
-        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const timestamp = currentRecordingStartTime;
-
-        recordings.push({ url: audioUrl, timestamp });
-
-        const recordingsList = document.getElementById("recordings-list");
-        const div = document.createElement("div");
-        div.classList.add("recording-item");
-
-        const audioElement = document.createElement("audio");
-        audioElement.src = audioUrl;
-        audioElement.controls = true;
-
-        const timestampLabel = document.createElement("span");
-        timestampLabel.textContent = `📌 Timestamp: ${timestamp.toFixed(2)}s `;
-
-        const downloadButton = document.createElement("button");
-        downloadButton.textContent = "Descargar";
-        downloadButton.onclick = () => {
-            const a = document.createElement("a");
-            a.href = audioUrl;
-            a.download = `grabacion_${new Date().toISOString()}.wav`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        };
-
-        div.appendChild(timestampLabel);
-        div.appendChild(audioElement);
-        div.appendChild(downloadButton);
-        recordingsList.appendChild(div);
-    }
-
     function showCountdown(callback) {
+        if (isCountdownActive) return; // Evita múltiples cuentas atrás
+        isCountdownActive = true;
+
         const countdownOverlay = document.getElementById("countdown-overlay");
         countdownOverlay.style.display = "flex";
-        
+
         let countdown = 3;
         countdownOverlay.textContent = countdown;
 
@@ -173,23 +104,10 @@
             if (countdown === 0) {
                 clearInterval(countdownInterval);
                 countdownOverlay.style.display = "none";
+                isCountdownActive = false; // Restablecer para futuras ejecuciones
                 callback();
             }
         }, 1000);
-    }
-
-    function playSyncedRecordings() {
-        const currentTime = player.getCurrentTime();
-        recordings.forEach(({ url, timestamp }) => {
-            if (currentTime >= timestamp) {
-                const audio = new Audio(url);
-                audio.play();
-            }
-        });
-    }
-
-    function stopAllRecordings() {
-        document.querySelectorAll("audio").forEach(audio => audio.pause());
     }
 
     function onPlayerStateChange(event) {
@@ -198,33 +116,25 @@
             return;
         }
 
-        const disableRecordingCheckbox = document.getElementById("disable-recording");
-
         if (event.data === YT.PlayerState.PLAYING) {
-            logTrace("El video ha comenzado a reproducirse.");
-            disableRecordingCheckbox.disabled = true;
+            console.log("El video ha comenzado a reproducirse.");
+
+            if (isCountdownActive) return; // Evita que la cuenta atrás se inicie nuevamente
 
             lastPlayTimestamp = player.getCurrentTime();
             player.pauseVideo();
 
             showCountdown(async () => {
                 await prepareRecording();
-                ignoreNextStateChange = true; // Evitar que la siguiente reproducción dispare otra cuenta atrás
+                ignoreNextStateChange = true; // Evita que PLAYING vuelva a activar otra cuenta atrás
                 player.seekTo(lastPlayTimestamp, true);
                 player.playVideo();
-
-                if (!disableRecordingCheckbox.checked) {
-                    startRecording();
-                }
-
-                playSyncedRecordings();
+                startRecording();
             });
 
         } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
-            logTrace("El video se ha pausado o terminado.");
-            disableRecordingCheckbox.disabled = false;
+            console.log("El video se ha pausado o terminado.");
             stopRecording();
-            stopAllRecordings();
         }
     }
 
@@ -232,9 +142,9 @@
         const url = document.getElementById("youtube-url").value;
         const videoId = getYouTubeVideoId(url);
         if (videoId) {
-            loadYouTubeVideo(videoId, 0);
+            loadYouTubeVideo(videoId);
         } else {
-            logTrace("URL de YouTube no válida.");
+            console.error("URL de YouTube no válida.");
         }
     });
 </script>
