@@ -39,7 +39,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.10 - 2025-03-18</footer>
+<footer>Versión 1.0.11 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -113,7 +113,7 @@
         triggers = [];
     }
 
-    function showCountdown(callback) {
+    function showCountdown(callbackBefore, callbackAfter) {
         if (isCountdownActive) return;
         isCountdownActive = true;
 
@@ -122,8 +122,8 @@
 
         let countdown = 3;
         countdownOverlay.textContent = countdown;
-        scheduleAudioTriggers();  // Calcular los triggers durante el countdown
-                
+        callbackBefore();
+        
         const countdownInterval = setInterval(() => {
             countdown--;
             countdownOverlay.textContent = countdown;
@@ -131,7 +131,7 @@
             if (countdown === 0) {
                 clearInterval(countdownInterval);
                 countdownOverlay.style.display = "none";
-                callback();
+                callbaackAfter();
             }
         }, 1000);
     }
@@ -139,22 +139,23 @@
     function onPlayerStateChange(event) {
         if (event.data === YT.PlayerState.PLAYING) {
             console.log("El video ha comenzado a reproducirse.");
+            lastPlayTimestamp = player.getCurrentTime();
 
             if (isCountdownActive) {
-                // Si la cuenta atrás estaba activa, la ignoramos para evitar un bucle
-                isCountdownActive = false;
                 return;
             }
 
-            lastPlayTimestamp = player.getCurrentTime();
             player.pauseVideo();
 
             showCountdown(async () => {
                 await prepareRecording();
                 player.seekTo(lastPlayTimestamp, true);
-                player.playVideo();
+                scheduleAudioTriggers(); // Ahora sí lo llamamos aquí
+            }, () => {
+                isCountdownActive = false;
                 startRecording();
                 executeTriggers(); // Ejecutar los triggers después del countdown
+                player.playVideo();
             });
 
         } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
@@ -187,8 +188,7 @@
         listItem.appendChild(downloadButton);
         list.appendChild(listItem);
 
-        // Almacenamos el timestamp en segundos
-        recordings.push({ audio, timestamp: timestamp });
+        recordings.push({ audio: audio, timestamp: timestamp });
     }
 
     function formatTime(seconds) {
@@ -196,58 +196,29 @@
         const sec = Math.floor(seconds % 60);
         return `${minutes}:${sec.toString().padStart(2, '0')}`;
     }
-
+    
     function scheduleAudioTriggers() {
         const currentTime = player.getCurrentTime();
+        triggers = [];
 
         recordings.forEach((recording) => {
             const startTime = recording.timestamp;
-            const endTime = startTime + (recording.audio.duration || 0); // Tiempo de finalización de la grabación
-
-            if (currentTime < startTime) {
-                recording.audio.currentTime = 0;
-                // Si el audio aún no ha comenzado, lo programamos
-                const delay = startTime - currentTime;
-                const trigger = { 
-                    audio: recording.audio, 
-                    timeToPlay: delay 
-                };
-                triggers.push(trigger);
-            } else if (currentTime >= startTime && currentTime < endTime) {
-                // Si el audio está en reproducción, lo reproducimos desde el tiempo correcto
-                const diff = currentTime - startTime;
-                recording.audio.currentTime = diff;
-                const trigger = { 
-                    audio: recording.audio, 
-                    timeToPlay: 0 
-                };
-                triggers.push(trigger);
+            const delay = (startTime - currentTime) * 1000; // Convertimos a milisegundos
+            
+            if (delay >= 0) {
+                triggers.push({ audio: recording.audio, timeToPlay: delay });
             }
         });
     }
 
     function executeTriggers() {
-        // Ejecutar los triggers después de que se haya completado el countdown
         triggers.forEach((trigger) => {
             setTimeout(() => {
-                trigger.audio.play();
-            }, Math.floor(trigger.timeToPlay * 1000));
+                trigger.audio.currentTime = 0;
+                trigger.audio.play().catch(error => console.warn("Reproducción bloqueada:", error));
+            }, trigger.timeToPlay);
         });
     }
-
-    document.getElementById("load-video").addEventListener("click", function () {
-        const url = document.getElementById("youtube-url").value;
-        const videoId = getYouTubeVideoId(url);
-        if (videoId) {
-            loadYouTubeVideo(videoId);
-        } else {
-            console.error("URL de YouTube no válida.");
-        }
-    });
-
-    document.getElementById("disable-recording").addEventListener("change", function () {
-        disableRecording = this.checked;
-    });
 </script>
 
 </body>
