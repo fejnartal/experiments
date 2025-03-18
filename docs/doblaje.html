@@ -34,12 +34,18 @@
     </label>
 </div>
 
+<div>
+    <label for="sync-adjust">Ajuste de sincronización (ms): </label>
+    <input type="range" id="sync-adjust" min="-2000" max="2000" step="1" value="0">
+    <span id="sync-value">0 ms</span>
+</div>
+
 <div id="countdown-overlay"></div>
 
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.34 - 2025-03-19</footer>
+<footer>Versión 1.0.35 - 2025-03-19</footer>
 
 <script>
     let player;
@@ -50,6 +56,7 @@
     let recordings = [];
     let disableRecording = false;
     let triggers = []; // Guardamos los triggers programados
+    let syncAdjustment = 0;
 
     function getYouTubeVideoId(url) {
         const regExp = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -234,10 +241,10 @@
                     console.log(`Triggering audio after ${trigger.timeToPlay} millis.`);
                     trigger.audio.currentTime = 0;
                     trigger.audio.play().catch(error => console.warn("Reproducción bloqueada:", error));
-                }, trigger.timeToPlay);
-            } else if (trigger.audio.duration > -(trigger.timeToPlay/1000)) {
+                }, trigger.timeToPlay + syncAdjustment);
+            } else if (trigger.audio.duration > -(trigger.timeToPlay/1000) + syncAdjustment) {
                 console.log(`Playing immediately at position ${trigger.audio.currentTime}`);
-                trigger.audio.currentTime = -(trigger.timeToPlay/1000);
+                trigger.audio.currentTime = -(trigger.timeToPlay/1000) + syncAdjustment;
                 if (trigger.audio.paused) {
                     console.log(`Forcing playback for paused audio`);
                     trigger.audio.play().catch(error => console.warn("Reproducción bloqueada:", error));
@@ -245,6 +252,11 @@
             }
         });
     }
+
+    document.getElementById("sync-adjust").addEventListener("input", function () {
+        syncAdjustment = parseInt(this.value, 10);
+        document.getElementById("sync-value").textContent = `${syncAdjustment} ms`;
+    });
 
     document.getElementById("load-video").addEventListener("click", function () {
          const url = document.getElementById("youtube-url").value;
