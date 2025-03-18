@@ -39,7 +39,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.8 - 2025-03-18</footer>
+<footer>Versión 1.0.9 - 2025-03-18</footer>
 
 <script>
     let player;
@@ -49,6 +49,7 @@
     let lastPlayTimestamp = 0;
     let recordings = [];
     let disableRecording = false;
+    let triggers = []; // Guardamos los triggers programados
 
     function getYouTubeVideoId(url) {
         const regExp = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -99,7 +100,17 @@
             mediaRecorder.stop();
             isRecording = false;
         }
-        recordings.forEach((recording) => { recording.audio.pause(); });
+
+        // Pausar todos los audios activos
+        recordings.forEach((recording) => {
+            if (!recording.audio.paused) {
+                recording.audio.pause();
+            }
+        });
+
+        // Eliminar todos los triggers programados
+        triggers.forEach((trigger) => clearTimeout(trigger));
+        triggers = [];
     }
 
     function showCountdown(callback) {
@@ -111,7 +122,8 @@
 
         let countdown = 3;
         countdownOverlay.textContent = countdown;
-
+        scheduleAudioTriggers();  // Calcular los triggers durante el countdown
+                
         const countdownInterval = setInterval(() => {
             countdown--;
             countdownOverlay.textContent = countdown;
@@ -142,6 +154,7 @@
                 player.seekTo(lastPlayTimestamp, true);
                 player.playVideo();
                 startRecording();
+                executeTriggers(); // Ejecutar los triggers después del countdown
             });
 
         } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
@@ -174,7 +187,7 @@
         listItem.appendChild(downloadButton);
         list.appendChild(listItem);
 
-        // Almacenamos el timestamp en milisegundos
+        // Almacenamos el timestamp en segundos
         recordings.push({ audio, timestamp: timestamp });
     }
 
@@ -184,24 +197,43 @@
         return `${minutes}:${sec.toString().padStart(2, '0')}`;
     }
 
-    function syncRecordedAudios() {
-        let currentTimestamp = player.getCurrentTime();
+    function scheduleAudioTriggers() {
+        const currentTime = player.getCurrentTime();
+
         recordings.forEach((recording) => {
-            if (!recording.audio.paused) return;
-        
-            const diff = currentTimestamp - recording.timestamp;
-            if (diff >= 0 && diff < recording.audio.duration) {
+            const startTime = recording.timestamp;
+            const endTime = startTime + (recording.audio.duration || 0); // Tiempo de finalización de la grabación
+
+            if (currentTime < startTime) {
+                recording.audio.currentTime = 0;
+                // Si el audio aún no ha comenzado, lo programamos
+                const delay = startTime - currentTime;
+                const trigger = { 
+                    audio: recording.audio, 
+                    timeToPlay: delay 
+                };
+                triggers.push(trigger);
+            } else if (currentTime >= startTime && currentTime < endTime) {
+                // Si el audio está en reproducción, lo reproducimos desde el tiempo correcto
+                const diff = currentTime - startTime;
                 recording.audio.currentTime = diff;
-                recording.audio.play();
+                const trigger = { 
+                    audio: recording.audio, 
+                    timeToPlay: 0 
+                };
+                triggers.push(trigger);
             }
         });
     }
 
-    setInterval(() => {
-        if (player && player.getPlayerState() === YT.PlayerState.PLAYING) {
-            syncRecordedAudios();
-        }
-    }, 10); // Sync audio every 10 ms
+    function executeTriggers() {
+        // Ejecutar los triggers después de que se haya completado el countdown
+        triggers.forEach((trigger) => {
+            setTimeout(() => {
+                trigger.audio.play();
+            }, trigger.timeToPlay * 1000);
+        });
+    }
 
     document.getElementById("load-video").addEventListener("click", function () {
         const url = document.getElementById("youtube-url").value;
