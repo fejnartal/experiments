@@ -152,10 +152,10 @@
                 player.seekTo(lastPlayTimestamp, true);
                 scheduleAudioTriggers(); // Ahora sí lo llamamos aquí
             }, () => {
-                isCountdownActive = false;
                 startRecording();
                 executeTriggers(); // Ejecutar los triggers después del countdown
                 player.playVideo();
+                isCountdownActive = false;
             });
 
         } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
