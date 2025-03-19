@@ -34,6 +34,8 @@
             position: relative;
             width: 350px;
             height: 500px;
+            transform-style: preserve-3d;
+            transition: transform 0.8s ease;
         }
 
         .card {
@@ -41,8 +43,7 @@
             height: 100%;
             position: absolute;
             transform-style: preserve-3d;
-            transition: transform 0.8s ease-in-out;
-            will-change: transform;
+            transition: transform 1s ease;
         }
 
         .card.flipped {
@@ -61,16 +62,19 @@
             text-align: center;
             padding: 20px;
             box-sizing: border-box;
-            border-radius: 15px;
         }
 
         .front {
             background: linear-gradient(145deg, #009688, #0288D1);
+            border-radius: 20px;
+            color: var(--text-light);
         }
 
         .back {
             transform: rotateY(180deg);
             background: linear-gradient(145deg, #0288D1, #009688);
+            border-radius: 20px;
+            color: var(--text-light);
         }
 
         .tabs-container {
@@ -79,22 +83,18 @@
             width: 100%;
             display: flex;
             justify-content: space-around;
-            background: #026aa7;
+            background: #0288D1;
             padding: 5px 0;
-            box-sizing: border-box;
-            border-radius: 0 0 15px 15px;
-            z-index: 10;
         }
 
         .tab {
-            padding: 10px 15px;
+            padding: 10px 20px;
             cursor: pointer;
             background: var(--tab-color);
             color: var(--text-light);
             border-radius: 10px 10px 0 0;
             font-weight: bold;
             transition: background 0.2s, transform 0.2s;
-            z-index: 11;
         }
 
         .tab:hover {
@@ -116,6 +116,11 @@
         }
 
         #flip-card {
+            position: absolute;
+            bottom: 5px;
+            right: 10px;
+            background: var(--secondary-color);
+            color: var(--text-light);
             padding: 12px;
             border-radius: 10px;
             cursor: pointer;
@@ -124,9 +129,6 @@
             height: 40px;
             text-align: center;
             border: none;
-            background: var(--secondary-color);
-            color: var(--text-light);
-            z-index: 12;
         }
 
         .icon {
@@ -162,7 +164,7 @@
                 <!-- Cara trasera -->
                 <div class="card-face back">
                     <h2>Sobre Mí</h2>
-                    <p>Soy un amante de la tecnología, diseño y desarrollo web.</p>
+                    <p>Apasionado de la tecnología, diseño y desarrollo web.</p>
                     <div class="tabs-container">
                         <div class="tab" onclick="showTab('bio', 'back')">Biografía</div>
                         <div class="tab" onclick="showTab('skills', 'back')">Habilidades</div>
@@ -182,14 +184,11 @@
     </div>
 
     <script>
-        let isFlipped = false;
         let lastTabFront = 'info-front';
         let lastTabBack = 'bio-back';
-        let offsetX = 0, offsetY = 0;
 
         function showTab(tab, side) {
-            const activeTab = side === "front" ? lastTabFront : lastTabBack;
-            document.getElementById(activeTab).classList.remove("active");
+            document.getElementById(side === "front" ? lastTabFront : lastTabBack).classList.remove("active");
             document.getElementById(`${tab}-${side}`).classList.add("active");
 
             if (side === "front") lastTabFront = `${tab}-front`;
@@ -197,30 +196,22 @@
         }
 
         function flipCard() {
-            const card = document.getElementById('card');
-            isFlipped = !isFlipped;
-            card.classList.toggle('flipped');
-
-            setTimeout(() => {
-                if (isFlipped) {
-                    showTab(lastTabBack, 'back');
-                } else {
-                    showTab(lastTabFront, 'front');
-                }
-            }, 300);
+            const card = document.getElementById("card");
+            card.classList.toggle("flipped");
         }
 
+        // Control de giroscopio con quaternions
         if (window.DeviceOrientationEvent) {
             window.addEventListener('deviceorientation', function(event) {
-                let beta = event.beta - offsetX;
-                let gamma = event.gamma - offsetY;
-
-                const limit = 10; 
+                let beta = event.beta;  
+                let gamma = event.gamma;  
+                const card = document.getElementById('card');
+                
+                const limit = 15;
                 beta = Math.max(-limit, Math.min(limit, beta));
                 gamma = Math.max(-limit, Math.min(limit, gamma));
-
-                const card = document.getElementById('card');
-                card.style.transform = `rotateX(${-beta}deg) rotateY(${gamma}deg) ${isFlipped ? 'rotateY(180deg)' : ''}`;
+                
+                card.style.transform = `rotateX(${-beta}deg) rotateY(${gamma}deg) ${card.classList.contains("flipped") ? "rotateY(180deg)" : ""}`;
             }, false);
         }
     </script>
