@@ -45,7 +45,7 @@
 <h2>Grabaciones</h2>
 <ul id="recording-list"></ul>
 
-<footer>Versión 1.0.35 - 2025-03-19</footer>
+<footer>Versión 1.0.36 - 2025-03-19</footer>
 
 <script>
     let player;
@@ -242,9 +242,9 @@
                     trigger.audio.currentTime = 0;
                     trigger.audio.play().catch(error => console.warn("Reproducción bloqueada:", error));
                 }, trigger.timeToPlay + syncAdjustment);
-            } else if (trigger.audio.duration > -(trigger.timeToPlay/1000) + syncAdjustment) {
+            } else if (trigger.audio.duration > (-trigger.timeToPlay + syncAdjustment)/1000) {
                 console.log(`Playing immediately at position ${trigger.audio.currentTime}`);
-                trigger.audio.currentTime = -(trigger.timeToPlay/1000) + syncAdjustment;
+                trigger.audio.currentTime = (-trigger.timeToPlay + syncAdjustment)/1000;
                 if (trigger.audio.paused) {
                     console.log(`Forcing playback for paused audio`);
                     trigger.audio.play().catch(error => console.warn("Reproducción bloqueada:", error));
