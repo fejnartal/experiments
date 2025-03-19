@@ -41,7 +41,7 @@
             height: 100%;
             position: absolute;
             transform-style: preserve-3d;
-            transition: transform 0.6s ease-in-out;
+            transition: transform 1s ease; /* Transición más suave */
             background: linear-gradient(145deg, #1E2A47, #34495E);
             border-radius: 20px;
             box-shadow: 10px 10px 20px rgba(0, 0, 0, 0.4);
@@ -50,7 +50,7 @@
         }
 
         .card.flipped {
-            transform: rotateY(180deg);
+            transform: rotateY(180deg); /* Animación de flip */
         }
 
         .card-face {
@@ -114,7 +114,7 @@
         #flip-card {
             position: absolute;
             bottom: 5px;
-            right: 10px; /* Alineado a la derecha de las pestañas */
+            right: 10px;
             background: var(--secondary-color);
             color: var(--text-light);
             padding: 12px;
@@ -191,7 +191,7 @@
                 const card = document.getElementById('card');
                 
                 // Aumentar la sensibilidad y permitir más movimiento
-                const limit = 45; // Aumentamos el límite a 45 grados
+                const limit = 20; // Reduzco el límite para un movimiento más suave
                 beta = Math.max(-limit, Math.min(limit, beta));
                 gamma = Math.max(-limit, Math.min(limit, gamma));
                 
