@@ -4,15 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tarjeta 3D Interactiva</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         :root {
             --primary-color: #003973;
-            --secondary-color: #E5E5BE;
-            --accent-color: #0082C8;
+            --secondary-color: #0082C8;
+            --background-gradient: linear-gradient(135deg, #3b8d99, #6b6b83, #aa4b6b);
+            --tab-color: #ffcc00;
+            --tab-hover: #ffdd44;
             --text-light: #ffffff;
-            --text-dark: #333;
-            --bg-color: linear-gradient(135deg, #3b8d99, #6b6b83, #aa4b6b);
+            --text-dark: #222;
         }
 
         body {
@@ -22,18 +22,18 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
-            background: var(--bg-color);
+            background: var(--background-gradient);
             font-family: 'Arial', sans-serif;
             overflow: hidden;
         }
 
         .scene {
-            perspective: 1000px;
+            perspective: 1200px;
         }
 
         .card-container {
             position: relative;
-            width: 340px;
+            width: 350px;
             height: 500px;
         }
 
@@ -43,9 +43,9 @@
             position: absolute;
             transform-style: preserve-3d;
             transition: transform 0.6s ease-in-out;
-            background: linear-gradient(145deg, #006494, #003973);
+            background: linear-gradient(145deg, #005B96, #003973);
             border-radius: 20px;
-            box-shadow: 8px 8px 20px rgba(0, 0, 0, 0.4);
+            box-shadow: 10px 10px 20px rgba(0, 0, 0, 0.4);
             color: var(--text-light);
             overflow: hidden;
         }
@@ -64,6 +64,7 @@
             align-items: center;
             justify-content: center;
             text-align: center;
+            padding: 20px;
         }
 
         .back {
@@ -71,28 +72,41 @@
             background: linear-gradient(145deg, #0082C8, #005B96);
         }
 
-        .tabs {
+        .tabs-container {
             position: absolute;
-            top: 50%;
-            right: 10px;
-            transform: translateY(-50%);
+            bottom: 0;
+            width: 100%;
             display: flex;
-            flex-direction: column;
+            justify-content: space-around;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 0 0 15px 15px;
         }
 
         .tab {
-            cursor: pointer;
+            flex: 1;
+            text-align: center;
             padding: 12px;
-            background: var(--accent-color);
-            color: var(--text-light);
+            cursor: pointer;
             font-weight: bold;
-            margin: 5px;
-            border-radius: 10px 0 0 10px;
-            transition: transform 0.2s ease-in-out;
+            background: var(--tab-color);
+            color: var(--text-dark);
+            border-radius: 10px 10px 0 0;
+            transition: background 0.3s ease-in-out;
         }
 
         .tab:hover {
-            transform: scale(1.1);
+            background: var(--tab-hover);
+        }
+
+        .tab.active {
+            background: var(--tab-hover);
+            box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.4);
+        }
+
+        .flip-tab {
+            background: #ff6600;
+            color: #fff;
+            border-radius: 10px 10px 0 0;
         }
 
         .content {
@@ -105,60 +119,15 @@
             display: block;
             opacity: 1;
         }
-
-        #toggle-lefty {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: var(--accent-color);
-            color: var(--text-light);
-            padding: 12px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        #flip-card {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--accent-color);
-            color: var(--text-light);
-            padding: 12px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        #enable-motion {
-            position: absolute;
-            bottom: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--primary-color);
-            color: var(--text-light);
-            padding: 10px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
     </style>
 </head>
 <body>
-
-    <button id="toggle-lefty">Modo Zurdo</button>
-    <button id="enable-motion">Activar Giroscopio</button>
 
     <div class="scene">
         <div class="card-container">
             <div class="card" id="card">
                 <!-- Parte Frontal -->
                 <div class="card-face front">
-                    <div class="tabs" id="tabs-front">
-                        <span class="tab" onclick="showTab('info', 'front')">Info</span>
-                        <span class="tab" onclick="showTab('contacto', 'front')">Contacto</span>
-                    </div>
                     <div class="content active" id="info-front">
                         <h2>Tu Nombre</h2>
                         <p>Desarrollador | Diseñador | Creativo</p>
@@ -168,28 +137,42 @@
                         <p>Email: correo@ejemplo.com</p>
                         <p>Teléfono: +123 456 789</p>
                     </div>
+                    <div class="content" id="proyectos-front">
+                        <h2>Proyectos</h2>
+                        <p>• Proyecto 1 - App Genial</p>
+                        <p>• Proyecto 2 - Sitio Web Cool</p>
+                    </div>
                 </div>
 
                 <!-- Parte Trasera -->
                 <div class="card-face back">
-                    <div class="tabs" id="tabs-back">
-                        <span class="tab" onclick="showTab('bio', 'back')">Bio</span>
-                        <span class="tab" onclick="showTab('habilidades', 'back')">Habilidades</span>
-                    </div>
                     <div class="content active" id="bio-back">
                         <h2>Biografía</h2>
                         <p>Un poco sobre tu historia...</p>
                     </div>
                     <div class="content" id="habilidades-back">
                         <h2>Habilidades</h2>
-                        <p>Desarrollo Web, UX, Animación 3D...</p>
+                        <p>Desarrollo Web, Diseño UX, Animación 3D...</p>
+                    </div>
+                    <div class="content" id="redes-back">
+                        <h2>Redes Sociales</h2>
+                        <p>LinkedIn, Twitter, GitHub...</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <button id="flip-card">Voltear Tarjeta</button>
+    <!-- Pestañas Inferiores -->
+    <div class="tabs-container">
+        <span class="tab active" onclick="showTab('info', 'front')">Info</span>
+        <span class="tab" onclick="showTab('contacto', 'front')">Contacto</span>
+        <span class="tab" onclick="showTab('proyectos', 'front')">Proyectos</span>
+        <span class="tab flip-tab" onclick="flipCard()">↻</span>
+        <span class="tab active" onclick="showTab('bio', 'back')">Bio</span>
+        <span class="tab" onclick="showTab('habilidades', 'back')">Habilidades</span>
+        <span class="tab" onclick="showTab('redes', 'back')">Redes</span>
+    </div>
 
     <script>
         const card = document.getElementById("card");
@@ -197,30 +180,23 @@
         let lastTabBack = 'bio-back';
 
         function showTab(tab, side) {
+            if (card.classList.contains("flipped") && side === "front") return;
+            if (!card.classList.contains("flipped") && side === "back") return;
+
             const lastTab = side === "front" ? lastTabFront : lastTabBack;
             document.getElementById(lastTab).classList.remove("active");
             document.getElementById(`${tab}-${side}`).classList.add("active");
 
             if (side === "front") lastTabFront = `${tab}-front`;
             else lastTabBack = `${tab}-back`;
+
+            document.querySelectorAll(".tab").forEach(tabElement => tabElement.classList.remove("active"));
+            document.querySelector(`[onclick="showTab('${tab}', '${side}')"]`).classList.add("active");
         }
 
-        document.getElementById("flip-card").addEventListener("click", () => {
+        function flipCard() {
             card.classList.toggle("flipped");
-        });
-
-        document.getElementById("enable-motion").addEventListener("click", () => {
-            window.addEventListener("deviceorientation", (event) => {
-                let x = Math.max(Math.min(event.gamma * 1.2, 10), -10);
-                let y = Math.max(Math.min(event.beta * 1.2, 5), -5);
-                card.style.transform = `rotateY(${x}deg) rotateX(${y}deg)`;
-            });
-        });
-
-        document.getElementById("toggle-lefty").addEventListener("click", () => {
-            document.getElementById("toggle-lefty").textContent = 
-                document.getElementById("toggle-lefty").textContent === "Modo Zurdo" ? "Modo Diestro" : "Modo Zurdo";
-        });
+        }
     </script>
 
 </body>
