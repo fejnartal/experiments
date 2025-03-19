@@ -9,23 +9,23 @@
         body {
             margin: 0;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
             background: linear-gradient(135deg, #ff9a9e, #fad0c4);
             font-family: 'Comic Sans MS', sans-serif;
             overflow: hidden;
-            flex-direction: column;
         }
         .scene {
-            perspective: 1000px;
+            perspective: 1200px;
         }
         .card {
             width: 300px;
             height: 450px;
             position: relative;
             transform-style: preserve-3d;
-            transition: transform 0.8s;
+            transition: transform 0.3s ease-out;
         }
         .card .side {
             position: absolute;
@@ -42,7 +42,6 @@
         }
         .front {
             background: #fff;
-            transform: rotateY(0deg);
         }
         .back {
             background: #ffd166;
@@ -101,7 +100,8 @@
 
         function flipCard() {
             flipped = !flipped;
-            card.style.transform = flipped ? "rotateY(180deg)" : "rotateY(0deg)";
+            card.style.transition = "transform 0.3s ease-out";
+            card.style.transform = `rotateY(${flipped ? 180 : 0}deg)`;
         }
 
         document.addEventListener("mousemove", (event) => {
@@ -129,8 +129,9 @@
         function startMotionTracking() {
             motionEnabled = true;
             window.addEventListener("deviceorientation", (event) => {
-                let x = event.gamma / 5;
-                let y = event.beta / 5;
+                let x = event.gamma / 4; // Ajuste de sensibilidad
+                let y = event.beta / 6;  // Ajuste de sensibilidad
+                card.style.transition = "transform 0.1s ease-out";
                 card.style.transform = `rotateY(${flipped ? 180 + x : x}deg) rotateX(${y}deg)`;
             });
             document.getElementById("permission-button").style.display = "none";
@@ -158,7 +159,7 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            sphere.rotation.y += 0.01;
+            sphere.rotation.y += 0.02;
             renderer.render(scene, camera);
         }
         animate();
