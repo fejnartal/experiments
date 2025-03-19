@@ -114,15 +114,15 @@
         #flip-card {
             position: absolute;
             bottom: 5px;
-            left: 50%;
-            transform: translateX(-50%);
+            right: 10px; /* Alineado a la derecha de las pestañas */
             background: var(--secondary-color);
             color: var(--text-light);
             padding: 12px;
             border-radius: 10px;
             cursor: pointer;
             font-weight: bold;
-            width: 80%;
+            width: 40px;
+            height: 40px;
             text-align: center;
             border: none;
         }
@@ -179,7 +179,7 @@
     </div>
 
     <button id="flip-card">
-        <span class="icon">↻ Voltear</span>
+        <span class="icon">↻</span>
     </button>
 
     <script>
@@ -190,8 +190,8 @@
                 let gamma = event.gamma;  // Movimiento de izquierda a derecha
                 const card = document.getElementById('card');
                 
-                // Limitar el movimiento
-                const limit = 30; // Grados
+                // Aumentar la sensibilidad y permitir más movimiento
+                const limit = 45; // Aumentamos el límite a 45 grados
                 beta = Math.max(-limit, Math.min(limit, beta));
                 gamma = Math.max(-limit, Math.min(limit, gamma));
                 
