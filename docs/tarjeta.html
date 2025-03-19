@@ -6,19 +6,18 @@
     <title>Tarjeta 3D Interactiva</title>
     <style>
         :root {
-            --primary-color: #003973;
-            --secondary-color: #0082C8;
-            --background-gradient: linear-gradient(135deg, #3b8d99, #6b6b83, #aa4b6b);
-            --tab-color: #ffcc00;
-            --tab-hover: #ffdd44;
+            --primary-color: #1a237e; /* Azul oscuro */
+            --secondary-color: #e65100; /* Naranja cálido */
+            --background-gradient: linear-gradient(135deg, #4a148c, #9c27b0); /* Morado y azul */
+            --tab-color: #ffb300; /* Dorado cálido */
+            --tab-hover: #ffcc00; /* Amarillo más brillante */
             --text-light: #ffffff;
-            --text-dark: #222;
+            --text-dark: #333333;
         }
 
         body {
             margin: 0;
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
@@ -43,7 +42,7 @@
             position: absolute;
             transform-style: preserve-3d;
             transition: transform 0.6s ease-in-out;
-            background: linear-gradient(145deg, #005B96, #003973);
+            background: linear-gradient(145deg, #1a237e, #4a148c);
             border-radius: 20px;
             box-shadow: 10px 10px 20px rgba(0, 0, 0, 0.4);
             color: var(--text-light);
@@ -65,11 +64,12 @@
             justify-content: center;
             text-align: center;
             padding: 20px;
+            box-sizing: border-box;
         }
 
         .back {
             transform: rotateY(180deg);
-            background: linear-gradient(145deg, #0082C8, #005B96);
+            background: linear-gradient(145deg, #9c27b0, #1a237e);
         }
 
         .tabs-container {
@@ -78,47 +78,61 @@
             width: 100%;
             display: flex;
             justify-content: space-around;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 0 0 15px 15px;
+            background: #2c387e;
+            padding: 5px 0;
+            box-sizing: border-box;
         }
 
         .tab {
-            flex: 1;
-            text-align: center;
-            padding: 12px;
+            padding: 10px 20px;
             cursor: pointer;
-            font-weight: bold;
             background: var(--tab-color);
-            color: var(--text-dark);
+            color: var(--text-light);
             border-radius: 10px 10px 0 0;
-            transition: background 0.3s ease-in-out;
+            font-weight: bold;
+            transition: background 0.2s, transform 0.2s;
         }
 
         .tab:hover {
             background: var(--tab-hover);
-        }
-
-        .tab.active {
-            background: var(--tab-hover);
-            box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.4);
-        }
-
-        .flip-tab {
-            background: #ff6600;
-            color: #fff;
-            border-radius: 10px 10px 0 0;
+            transform: scale(1.1);
         }
 
         .content {
             display: none;
             opacity: 0;
             transition: opacity 0.3s ease-in-out;
+            text-align: left;
+            width: 100%;
         }
 
         .content.active {
             display: block;
             opacity: 1;
         }
+
+        #flip-card {
+            position: absolute;
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--secondary-color);
+            color: var(--text-light);
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 80%;
+            text-align: center;
+        }
+
+        /* Animación de reflejos de luz */
+        .card {
+            background: linear-gradient(145deg, #1a237e, #4a148c), url('https://www.transparenttextures.com/patterns/wood-squares.png');
+            background-size: cover;
+            background-blend-mode: multiply;
+        }
+
     </style>
 </head>
 <body>
@@ -126,77 +140,79 @@
     <div class="scene">
         <div class="card-container">
             <div class="card" id="card">
-                <!-- Parte Frontal -->
+                <!-- Cara frontal -->
                 <div class="card-face front">
+                    <h2>Bienvenido</h2>
+                    <p>Desarrollador | Creativo | Diseñador Web</p>
+                    <div class="tabs-container">
+                        <div class="tab" onclick="showTab('info', 'front')">Info</div>
+                        <div class="tab" onclick="showTab('contact', 'front')">Contacto</div>
+                    </div>
                     <div class="content active" id="info-front">
-                        <h2>Tu Nombre</h2>
-                        <p>Desarrollador | Diseñador | Creativo</p>
+                        <h3>Mi Información</h3>
+                        <p>Soy un desarrollador apasionado por crear soluciones interactivas y creativas.</p>
                     </div>
-                    <div class="content" id="contacto-front">
-                        <h2>Contacto</h2>
-                        <p>Email: correo@ejemplo.com</p>
-                        <p>Teléfono: +123 456 789</p>
-                    </div>
-                    <div class="content" id="proyectos-front">
-                        <h2>Proyectos</h2>
-                        <p>• Proyecto 1 - App Genial</p>
-                        <p>• Proyecto 2 - Sitio Web Cool</p>
+                    <div class="content" id="contact-front">
+                        <h3>Contacto</h3>
+                        <p>Email: ejemplo@correo.com</p>
+                        <p>Teléfono: 123 456 789</p>
                     </div>
                 </div>
 
-                <!-- Parte Trasera -->
+                <!-- Cara trasera -->
                 <div class="card-face back">
+                    <h2>Sobre Mí</h2>
+                    <p>Soy un amante de la tecnología, diseño y desarrollo web.</p>
+                    <div class="tabs-container">
+                        <div class="tab" onclick="showTab('bio', 'back')">Biografía</div>
+                        <div class="tab" onclick="showTab('skills', 'back')">Habilidades</div>
+                    </div>
                     <div class="content active" id="bio-back">
-                        <h2>Biografía</h2>
-                        <p>Un poco sobre tu historia...</p>
+                        <h3>Biografía</h3>
+                        <p>Empecé mi carrera como desarrollador web a los 18 años...</p>
                     </div>
-                    <div class="content" id="habilidades-back">
-                        <h2>Habilidades</h2>
-                        <p>Desarrollo Web, Diseño UX, Animación 3D...</p>
-                    </div>
-                    <div class="content" id="redes-back">
-                        <h2>Redes Sociales</h2>
-                        <p>LinkedIn, Twitter, GitHub...</p>
+                    <div class="content" id="skills-back">
+                        <h3>Habilidades</h3>
+                        <p>HTML, CSS, JavaScript, React, Node.js, etc.</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Pestañas Inferiores -->
-    <div class="tabs-container">
-        <span class="tab active" onclick="showTab('info', 'front')">Info</span>
-        <span class="tab" onclick="showTab('contacto', 'front')">Contacto</span>
-        <span class="tab" onclick="showTab('proyectos', 'front')">Proyectos</span>
-        <span class="tab flip-tab" onclick="flipCard()">↻</span>
-        <span class="tab active" onclick="showTab('bio', 'back')">Bio</span>
-        <span class="tab" onclick="showTab('habilidades', 'back')">Habilidades</span>
-        <span class="tab" onclick="showTab('redes', 'back')">Redes</span>
-    </div>
+    <button id="flip-card">Voltear Tarjeta</button>
 
     <script>
         const card = document.getElementById("card");
-        let lastTabFront = 'info-front';
-        let lastTabBack = 'bio-back';
+        const flipButton = document.getElementById("flip-card");
 
         function showTab(tab, side) {
-            if (card.classList.contains("flipped") && side === "front") return;
-            if (!card.classList.contains("flipped") && side === "back") return;
-
+            // Mostrar la pestaña correspondiente
             const lastTab = side === "front" ? lastTabFront : lastTabBack;
             document.getElementById(lastTab).classList.remove("active");
             document.getElementById(`${tab}-${side}`).classList.add("active");
 
             if (side === "front") lastTabFront = `${tab}-front`;
             else lastTabBack = `${tab}-back`;
-
-            document.querySelectorAll(".tab").forEach(tabElement => tabElement.classList.remove("active"));
-            document.querySelector(`[onclick="showTab('${tab}', '${side}')"]`).classList.add("active");
         }
 
-        function flipCard() {
+        flipButton.addEventListener("click", () => {
             card.classList.toggle("flipped");
-        }
+            // Esperar hasta que el flip se haya realizado para ocultar/mostrar pestañas correctamente
+            setTimeout(() => {
+                if (card.classList.contains("flipped")) {
+                    document.querySelectorAll('.front .tab').forEach(tab => tab.style.display = 'none');
+                    document.querySelectorAll('.back .tab').forEach(tab => tab.style.display = 'block');
+                } else {
+                    document.querySelectorAll('.back .tab').forEach(tab => tab.style.display = 'none');
+                    document.querySelectorAll('.front .tab').forEach(tab => tab.style.display = 'block');
+                }
+            }, 300);
+        });
+
+        // Variables para recordar la pestaña activa
+        let lastTabFront = 'info-front';
+        let lastTabBack = 'bio-back';
     </script>
 
 </body>
