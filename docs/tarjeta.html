@@ -6,13 +6,13 @@
     <title>Tarjeta 3D Interactiva</title>
     <style>
         :root {
-            --primary-color: #009688; /* Verde corporativo */
-            --secondary-color: #0288D1; /* Azul corporativo */
-            --tab-color: #FF9800; /* Naranja suave */
-            --tab-hover: #FF5722; /* Naranja fuerte */
+            --primary-color: #009688;
+            --secondary-color: #0288D1;
+            --tab-color: #FF9800;
+            --tab-hover: #FF5722;
             --text-light: #FFFFFF;
             --text-dark: #333333;
-            --background-gradient: linear-gradient(135deg, #B2DFDB, #80CBC4); /* Fondo suave */
+            --background-gradient: linear-gradient(135deg, #B2DFDB, #80CBC4);
         }
 
         body {
@@ -42,6 +42,7 @@
             position: absolute;
             transform-style: preserve-3d;
             transition: transform 0.8s ease-in-out;
+            will-change: transform;
         }
 
         .card.flipped {
@@ -113,11 +114,6 @@
         }
 
         #flip-card {
-            position: absolute;
-            bottom: 5px;
-            right: 10px;
-            background: var(--secondary-color);
-            color: var(--text-light);
             padding: 12px;
             border-radius: 10px;
             cursor: pointer;
@@ -126,6 +122,8 @@
             height: 40px;
             text-align: center;
             border: none;
+            background: var(--secondary-color);
+            color: var(--text-light);
         }
 
         .icon {
@@ -201,15 +199,26 @@
 
             setTimeout(() => {
                 if (isFlipped) {
-                    document.querySelectorAll('.front .tab').forEach(tab => tab.style.display = 'none');
-                    document.querySelectorAll('.back .tab').forEach(tab => tab.style.display = 'block');
                     showTab(lastTabBack, 'back');
                 } else {
-                    document.querySelectorAll('.back .tab').forEach(tab => tab.style.display = 'none');
-                    document.querySelectorAll('.front .tab').forEach(tab => tab.style.display = 'block');
                     showTab(lastTabFront, 'front');
                 }
             }, 300);
+        }
+
+        // GIROSCOPIO: Movimiento sutil de la tarjeta
+        if (window.DeviceOrientationEvent) {
+            window.addEventListener('deviceorientation', function(event) {
+                let beta = event.beta;
+                let gamma = event.gamma;
+                const card = document.getElementById('card');
+                
+                const limit = 10;
+                beta = Math.max(-limit, Math.min(limit, beta));
+                gamma = Math.max(-limit, Math.min(limit, gamma));
+                
+                card.style.transform = `rotateX(${-beta}deg) rotateY(${gamma}deg) ${isFlipped ? 'rotateY(180deg)' : ''}`;
+            }, false);
         }
     </script>
 
