@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tarjeta 3D Interactiva</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #ff9a9e, #fad0c4);
+            font-family: 'Comic Sans MS', sans-serif;
+            overflow: hidden;
+            flex-direction: column;
+        }
+        .scene {
+            perspective: 1000px;
+        }
+        .card {
+            width: 300px;
+            height: 450px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.8s;
+        }
+        .card .side {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 15px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        .front {
+            background: #fff;
+            transform: rotateY(0deg);
+        }
+        .back {
+            background: #ffd166;
+            transform: rotateY(180deg);
+        }
+        h2 {
+            margin: 10px 0;
+            color: #ff6b6b;
+        }
+        p {
+            font-size: 14px;
+            padding: 10px;
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            background: #06d6a0;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        #model-container {
+            width: 150px;
+            height: 150px;
+        }
+        #permission-button {
+            margin-bottom: 20px;
+            background: #118ab2;
+        }
+    </style>
+</head>
+<body>
+    <button id="permission-button">Activar efectos 3D</button>
+    <div class="scene">
+        <div class="card" id="card">
+            <div class="side front">
+                <h2>Tu Nombre</h2>
+                <p>Desarrollador | Diseñador | Creativo</p>
+                <div id="model-container"></div>
+                <button onclick="flipCard()">Ver más</button>
+            </div>
+            <div class="side back">
+                <h2>Contacto</h2>
+                <p>Email: correo@ejemplo.com</p>
+                <p>Teléfono: +123 456 789</p>
+                <button onclick="flipCard()">Volver</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const card = document.getElementById('card');
+        let flipped = false;
+        let motionEnabled = false;
+
+        function flipCard() {
+            flipped = !flipped;
+            card.style.transform = flipped ? "rotateY(180deg)" : "rotateY(0deg)";
+        }
+
+        document.addEventListener("mousemove", (event) => {
+            if (!motionEnabled) {
+                let x = (window.innerWidth / 2 - event.pageX) / 25;
+                let y = (window.innerHeight / 2 - event.pageY) / 25;
+                card.style.transform = `rotateY(${flipped ? 180 + x : x}deg) rotateX(${y}deg)`;
+            }
+        });
+
+        function enableMotion() {
+            if (typeof DeviceOrientationEvent.requestPermission === "function") {
+                DeviceOrientationEvent.requestPermission()
+                    .then((permissionState) => {
+                        if (permissionState === "granted") {
+                            startMotionTracking();
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                startMotionTracking();
+            }
+        }
+
+        function startMotionTracking() {
+            motionEnabled = true;
+            window.addEventListener("deviceorientation", (event) => {
+                let x = event.gamma / 5;
+                let y = event.beta / 5;
+                card.style.transform = `rotateY(${flipped ? 180 + x : x}deg) rotateX(${y}deg)`;
+            });
+            document.getElementById("permission-button").style.display = "none";
+        }
+
+        document.getElementById("permission-button").addEventListener("click", enableMotion);
+
+        // Cargar el modelo 3D con Three.js
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true });
+        renderer.setSize(150, 150);
+        document.getElementById("model-container").appendChild(renderer.domElement);
+
+        const geometry = new THREE.SphereGeometry(0.5, 32, 32);
+        const material = new THREE.MeshStandardMaterial({ color: 0xff6b6b });
+        const sphere = new THREE.Mesh(geometry, material);
+        scene.add(sphere);
+
+        const light = new THREE.PointLight(0xffffff, 1);
+        light.position.set(2, 2, 2);
+        scene.add(light);
+
+        camera.position.z = 1.5;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            sphere.rotation.y += 0.01;
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>
