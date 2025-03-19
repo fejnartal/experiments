@@ -17,7 +17,7 @@
             font-family: 'Comic Sans MS', sans-serif;
             overflow: hidden;
         }
-        
+
         /* Fondo Animado */
         body::before {
             content: "";
@@ -37,7 +37,7 @@
         }
 
         .scene {
-            perspective: 1200px;
+            perspective: 1000px;
         }
 
         .card {
@@ -52,26 +52,52 @@
             overflow: hidden;
         }
 
+        /* Simulación de reflejo */
+        .reflection {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.3), transparent);
+            opacity: 0.5;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
         .tabs {
+            position: absolute;
+            top: 50%;
+            right: 0;
+            transform: translateY(-50%);
             display: flex;
-            justify-content: space-around;
-            background: #ff6b6b;
-            padding: 10px;
+            flex-direction: column;
         }
 
         .tab {
             cursor: pointer;
+            padding: 10px;
+            background: #ff6b6b;
             color: white;
             font-weight: bold;
+            margin: 5px;
+            border-radius: 10px 0 0 10px;
+            transition: transform 0.3s ease-in-out;
         }
 
         .tab:hover {
-            text-decoration: underline;
+            transform: scale(1.1);
         }
 
         .content {
             padding: 20px;
             text-align: center;
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 0.4s, transform 0.4s;
+        }
+
+        .active {
+            opacity: 1;
+            transform: scale(1);
         }
 
         .hidden {
@@ -84,24 +110,32 @@
             margin: auto;
         }
 
-        #permission-button {
-            margin-bottom: 20px;
+        /* Botón Modo Zurdo */
+        #lefty-toggle {
+            position: absolute;
+            top: 20px;
+            left: 20px;
             background: #118ab2;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
         }
 
     </style>
 </head>
 <body>
-    <button id="permission-button">Activar efectos 3D</button>
+    <button id="lefty-toggle">Modo Zurdo</button>
     <div class="scene">
         <div class="card" id="card">
-            <div class="tabs">
+            <div class="reflection"></div>
+            <div class="tabs" id="tabs">
                 <span class="tab" onclick="showTab('info')">Info</span>
                 <span class="tab" onclick="showTab('contacto')">Contacto</span>
                 <span class="tab" onclick="showTab('proyectos')">Proyectos</span>
             </div>
 
-            <div class="content" id="info">
+            <div class="content active" id="info">
                 <h2>Tu Nombre</h2>
                 <p>Desarrollador | Diseñador | Creativo</p>
                 <div id="model-container"></div>
@@ -125,48 +159,32 @@
     <script>
         const card = document.getElementById('card');
         let motionEnabled = false;
+        let leftyMode = false;
 
         function showTab(tab) {
-            document.querySelectorAll('.content').forEach(el => el.classList.add('hidden'));
-            document.getElementById(tab).classList.remove('hidden');
+            document.querySelectorAll('.content').forEach(el => el.classList.remove('active'));
+            document.getElementById(tab).classList.add('active');
         }
-
-        document.addEventListener("mousemove", (event) => {
-            if (!motionEnabled) {
-                let x = (window.innerWidth / 2 - event.pageX) / 10;
-                let y = (window.innerHeight / 2 - event.pageY) / 10;
-                card.style.transform = `rotateY(${x}deg) rotateX(${y}deg)`;
-            }
-        });
 
         function enableMotion() {
-            if (typeof DeviceOrientationEvent.requestPermission === "function") {
-                DeviceOrientationEvent.requestPermission()
-                    .then((permissionState) => {
-                        if (permissionState === "granted") {
-                            startMotionTracking();
-                        }
-                    })
-                    .catch(console.error);
-            } else {
-                startMotionTracking();
-            }
-        }
-
-        function startMotionTracking() {
-            motionEnabled = true;
             window.addEventListener("deviceorientation", (event) => {
-                let x = event.gamma * 1.5;
-                let y = event.beta * 1.5;
+                let x = Math.max(Math.min(event.gamma * 1.2, 15), -15);
+                let y = Math.max(Math.min(event.beta * 1.2, 10), -10);
                 card.style.transition = "transform 0.1s ease-out";
                 card.style.transform = `rotateY(${x}deg) rotateX(${y}deg)`;
             });
-            document.getElementById("permission-button").style.display = "none";
         }
 
-        document.getElementById("permission-button").addEventListener("click", enableMotion);
+        document.getElementById("lefty-toggle").addEventListener("click", () => {
+            leftyMode = !leftyMode;
+            const tabs = document.getElementById("tabs");
+            tabs.style.transition = "transform 0.3s ease-in-out";
+            tabs.style.transform = `rotateY(${leftyMode ? 180 : 0}deg)`;
+            tabs.style.right = leftyMode ? "unset" : "0";
+            tabs.style.left = leftyMode ? "0" : "unset";
+        });
 
-        // Cargar el modelo 3D con Three.js con efecto cell-shading
+        // Cargar el modelo 3D con efecto toon
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ alpha: true });
@@ -174,7 +192,7 @@
         document.getElementById("model-container").appendChild(renderer.domElement);
 
         const geometry = new THREE.SphereGeometry(0.5, 32, 32);
-        const material = new THREE.MeshToonMaterial({ color: 0xff6b6b, gradientMap: null });
+        const material = new THREE.MeshToonMaterial({ color: 0xff6b6b });
         const sphere = new THREE.Mesh(geometry, material);
         scene.add(sphere);
 
@@ -190,6 +208,8 @@
             renderer.render(scene, camera);
         }
         animate();
+
+        enableMotion();
     </script>
 </body>
 </html>
