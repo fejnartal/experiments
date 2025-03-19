@@ -24,25 +24,16 @@
             background: var(--background-gradient);
             font-family: 'Arial', sans-serif;
             overflow: hidden;
-            width: 100%;
-            flex-direction: column;
         }
 
         .scene {
             perspective: 1200px;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
         }
 
         .card-container {
             position: relative;
             width: 350px;
             height: 500px;
-            max-width: 100%;
-            max-height: 100%;
         }
 
         .card {
@@ -50,16 +41,11 @@
             height: 100%;
             position: absolute;
             transform-style: preserve-3d;
-            transition: transform 1s ease; /* Transición más suave */
-            background: linear-gradient(145deg, #009688, #0288D1);
-            border-radius: 20px;
-            box-shadow: 10px 10px 20px rgba(0, 0, 0, 0.4);
-            color: var(--text-light);
-            overflow: hidden;
+            transition: transform 0.8s ease-in-out;
         }
 
         .card.flipped {
-            transform: rotateY(180deg); /* Animación de flip */
+            transform: rotateY(180deg);
         }
 
         .card-face {
@@ -74,6 +60,11 @@
             text-align: center;
             padding: 20px;
             box-sizing: border-box;
+            border-radius: 15px;
+        }
+
+        .front {
+            background: linear-gradient(145deg, #009688, #0288D1);
         }
 
         .back {
@@ -87,13 +78,14 @@
             width: 100%;
             display: flex;
             justify-content: space-around;
-            background: #0288D1;
+            background: #026aa7;
             padding: 5px 0;
             box-sizing: border-box;
+            border-radius: 0 0 15px 15px;
         }
 
         .tab {
-            padding: 10px 20px;
+            padding: 10px 15px;
             cursor: pointer;
             background: var(--tab-color);
             color: var(--text-light);
@@ -139,29 +131,6 @@
         .icon {
             font-size: 20px;
         }
-
-        .logo {
-            width: 80px;
-            margin-bottom: 20px;
-        }
-
-        /* Responsividad */
-        @media (max-width: 600px) {
-            .card-container {
-                width: 90vw;
-                height: 70vh;
-            }
-
-            .tabs-container {
-                font-size: 12px;
-            }
-
-            #flip-card {
-                bottom: 10px;
-                right: 15px;
-            }
-        }
-
     </style>
 </head>
 <body>
@@ -171,12 +140,12 @@
             <div class="card" id="card">
                 <!-- Cara frontal -->
                 <div class="card-face front">
-                    <img src="https://via.placeholder.com/80" alt="Logo" class="logo">
                     <h2>Bienvenido</h2>
                     <p>Desarrollador | Creativo | Diseñador Web</p>
                     <div class="tabs-container">
                         <div class="tab" onclick="showTab('info', 'front')">Info</div>
                         <div class="tab" onclick="showTab('contact', 'front')">Contacto</div>
+                        <div class="tab" id="flip-card" onclick="flipCard()">↻</div>
                     </div>
                     <div class="content active" id="info-front">
                         <h3>Mi Información</h3>
@@ -196,6 +165,7 @@
                     <div class="tabs-container">
                         <div class="tab" onclick="showTab('bio', 'back')">Biografía</div>
                         <div class="tab" onclick="showTab('skills', 'back')">Habilidades</div>
+                        <div class="tab" id="flip-card" onclick="flipCard()">↻</div>
                     </div>
                     <div class="content active" id="bio-back">
                         <h3>Biografía</h3>
@@ -210,57 +180,37 @@
         </div>
     </div>
 
-    <button id="flip-card">
-        <span class="icon">↻</span>
-    </button>
-
     <script>
-        // Controlar el giroscopio para mover la tarjeta
-        if (window.DeviceOrientationEvent) {
-            window.addEventListener('deviceorientation', function(event) {
-                let beta = event.beta;  // Movimiento arriba y abajo
-                let gamma = event.gamma;  // Movimiento de izquierda a derecha
-                const card = document.getElementById('card');
-                
-                // Aumentar la sensibilidad y permitir más movimiento
-                const limit = 20; // Reduzco el límite para un movimiento más suave
-                beta = Math.max(-limit, Math.min(limit, beta));
-                gamma = Math.max(-limit, Math.min(limit, gamma));
-                
-                card.style.transform = `rotateX(${-beta}deg) rotateY(${gamma}deg)`;
-            }, false);
-        }
-
-        const flipButton = document.getElementById("flip-card");
-        const card = document.getElementById("card");
+        let isFlipped = false;
+        let lastTabFront = 'info-front';
+        let lastTabBack = 'bio-back';
 
         function showTab(tab, side) {
-            // Mostrar la pestaña correspondiente
-            const lastTab = side === "front" ? lastTabFront : lastTabBack;
-            document.getElementById(lastTab).classList.remove("active");
+            const activeTab = side === "front" ? lastTabFront : lastTabBack;
+            document.getElementById(activeTab).classList.remove("active");
             document.getElementById(`${tab}-${side}`).classList.add("active");
 
             if (side === "front") lastTabFront = `${tab}-front`;
             else lastTabBack = `${tab}-back`;
         }
 
-        flipButton.addEventListener("click", () => {
-            card.classList.toggle("flipped");
-            // Esperar hasta que el flip se haya realizado para ocultar/mostrar pestañas correctamente
+        function flipCard() {
+            const card = document.getElementById('card');
+            card.classList.toggle('flipped');
+            isFlipped = !isFlipped;
+
             setTimeout(() => {
-                if (card.classList.contains("flipped")) {
+                if (isFlipped) {
                     document.querySelectorAll('.front .tab').forEach(tab => tab.style.display = 'none');
                     document.querySelectorAll('.back .tab').forEach(tab => tab.style.display = 'block');
+                    showTab(lastTabBack, 'back');
                 } else {
                     document.querySelectorAll('.back .tab').forEach(tab => tab.style.display = 'none');
                     document.querySelectorAll('.front .tab').forEach(tab => tab.style.display = 'block');
+                    showTab(lastTabFront, 'front');
                 }
             }, 300);
-        });
-
-        // Variables para recordar la pestaña activa
-        let lastTabFront = 'info-front';
-        let lastTabBack = 'bio-back';
+        }
     </script>
 
 </body>
