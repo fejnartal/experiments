@@ -1,13 +1,28 @@
 const CACHE_KEY = "notificaciones-cache";
-const INTERVALO_MS = 20 * 60 * 1000; // 20 minutos
+const LOGS_KEY = "logs";
+const INTERVALO_MS = 60 * 1000; // 1 minuto para pruebas rápidas
+let notificacionesActivas = true;
 
-self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener("install", () => {
+    self.skipWaiting();
+    logMessage("Service Worker instalado.");
+});
+
+self.addEventListener("activate", event => {
+    event.waitUntil(self.clients.claim());
+    logMessage("Service Worker activado.");
+});
 
 self.addEventListener("message", async (event) => {
     if (event.data.action === "start") {
+        notificacionesActivas = true;
+        logMessage("Inicio de notificaciones.");
         await obtenerMensajes();
         programarNotificaciones();
+    } else if (event.data.action === "stop") {
+        notificacionesActivas = false;
+        await caches.delete(CACHE_KEY);
+        logMessage("Notificaciones detenidas y caché eliminada.");
     }
 });
 
@@ -16,9 +31,11 @@ async function obtenerMensajes() {
         let res = await fetch("https://api.quotable.io/quotes?limit=5");
         let datos = await res.json();
         let mensajes = datos.results.map(q => q.content);
-        await caches.open(CACHE_KEY).then(cache => cache.put("mensajes", new Response(JSON.stringify(mensajes))));
+        let cache = await caches.open(CACHE_KEY);
+        await cache.put("mensajes", new Response(JSON.stringify(mensajes)));
+        logMessage("Mensajes obtenidos y guardados en caché.");
     } catch (err) {
-        console.error("Error obteniendo mensajes:", err);
+        logMessage("Error obteniendo mensajes: " + err);
     }
 }
 
@@ -36,9 +53,46 @@ async function obtenerMensajeGuardado() {
     return "No hay mensajes guardados.";
 }
 
-function programarNotificaciones() {
-    setInterval(async () => {
-        let mensaje = await obtenerMensajeGuardado();
-        self.registration.showNotification("Notificación", { body: mensaje });
-    }, INTERVALO_MS);
+async function programarNotificaciones() {
+    if (!notificacionesActivas) {
+        logMessage("Las notificaciones están desactivadas. No se programarán más.");
+        return;
+    }
+
+    let permiso = await Notification.requestPermission();
+    if (permiso !== "granted") {
+        logMessage("Permiso de notificaciones denegado. Deteniendo.");
+        return;
+    }
+
+    let mensaje = await obtenerMensajeGuardado();
+    self.registration.showNotification("Notificación", { body: mensaje });
+    logMessage("Notificación enviada: " + mensaje);
+
+    setTimeout(programarNotificaciones, INTERVALO_MS);
 }
+
+function logMessage(message) {
+    let timestamp = new Date().toLocaleTimeString();
+    let fullMessage = `[${timestamp}] ${message}\n`;
+
+    self.clients.matchAll().then(clients => {
+        clients.forEach(client => {
+            client.postMessage({ log: fullMessage });
+        });
+    });
+
+    self.registration.storage.get(LOGS_KEY).then(existingLogs => {
+        let logs = existingLogs || "";
+        logs += fullMessage;
+        self.registration.storage.set(LOGS_KEY, logs);
+    });
+}
+
+self.addEventListener("message", (event) => {
+    if (event.data.logRequest) {
+        self.registration.storage.get(LOGS_KEY).then(logs => {
+            event.source.postMessage({ logs: logs || "No hay logs disponibles." });
+        });
+    }
+});
