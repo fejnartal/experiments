@@ -14,6 +14,7 @@ self.addEventListener("activate", event => {
 self.addEventListener("message", async (event) => {
     if (event.data.action === "start") {
         logMessage("Activando notificaciones automáticas.");
+        programandoNotificacion = true;
         await verificarYObtenerMensajes();
         programarSiguienteNotificacion();
     } else if (event.data.action === "stop") {
@@ -75,22 +76,20 @@ async function obtenerMensajeGuardado() {
 }
 
 async function enviarNotificacion() {
+    if (!programandoNotificacion) return;
+
     let mensaje = await obtenerMensajeGuardado();
     self.registration.showNotification("Curiosidad", { body: mensaje });
     logMessage("Notificación enviada: " + mensaje);
 
-    // Programar la siguiente notificación en 1 minuto
-    if (programandoNotificacion) {
-        setTimeout(() => enviarNotificacion(), 60 * 1000);
-    }
+    // Reprogramar la siguiente notificación en 5 minutos
+    setTimeout(() => enviarNotificacion(), 5 * 60 * 1000);
 }
 
 function programarSiguienteNotificacion() {
-    if (!programandoNotificacion) {
-        programandoNotificacion = true;
-        logMessage("Iniciando notificaciones periódicas.");
-        enviarNotificacion();
-    }
+    if (!programandoNotificacion) return;
+    logMessage("Iniciando notificaciones periódicas en segundo plano.");
+    enviarNotificacion();
 }
 
 function logMessage(message) {
