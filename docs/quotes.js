@@ -16,7 +16,7 @@ self.addEventListener("message", async (event) => {
         logMessage("Activando notificaciones automáticas.");
         programandoNotificacion = true;
         await verificarYObtenerMensajes();
-        programarSiguienteNotificacion();
+        registrarBackgroundSync();
     } else if (event.data.action === "stop") {
         programandoNotificacion = false;
         await caches.delete(CACHE_KEY);
@@ -24,6 +24,7 @@ self.addEventListener("message", async (event) => {
     }
 });
 
+// Función para obtener los mensajes y almacenarlos en caché
 async function verificarYObtenerMensajes() {
     let cache = await caches.open(CACHE_KEY);
     let respuesta = await cache.match("mensajes");
@@ -33,6 +34,7 @@ async function verificarYObtenerMensajes() {
     }
 }
 
+// Función para obtener nuevos mensajes de la API
 async function obtenerMensajes() {
     try {
         logMessage("Solicitando nuevos mensajes...");
@@ -53,6 +55,7 @@ async function obtenerMensajes() {
     }
 }
 
+// Función para obtener un mensaje guardado desde la caché
 async function obtenerMensajeGuardado() {
     let cache = await caches.open(CACHE_KEY);
     let respuesta = await cache.match("mensajes");
@@ -75,22 +78,36 @@ async function obtenerMensajeGuardado() {
     return "No hay mensajes guardados.";
 }
 
+// Función para enviar la notificación
 async function enviarNotificacion() {
     if (!programandoNotificacion) return;
 
     let mensaje = await obtenerMensajeGuardado();
     self.registration.showNotification("Curiosidad", { body: mensaje });
     logMessage("Notificación enviada: " + mensaje);
-
-    // Reprogramar la siguiente notificación en 5 segundos para pruebas
-    setTimeout(() => enviarNotificacion(), 60 * 1000);
 }
 
-function programarSiguienteNotificacion() {
-    if (!programandoNotificacion) return;
-    logMessage("Iniciando notificaciones periódicas en segundo plano.");
-    enviarNotificacion();
+// Función para registrar el sync en segundo plano
+async function registrarBackgroundSync() {
+    if ('SyncManager' in self) {
+        logMessage("Registrando el Background Sync...");
+        try {
+            await self.registration.sync.register('notificaciones-sync');
+        } catch (err) {
+            logMessage("Error registrando Background Sync: " + err);
+        }
+    } else {
+        logMessage("Background Sync no soportado en este navegador.");
+    }
 }
+
+// Función que maneja el evento de Background Sync
+self.addEventListener('sync', event => {
+    if (event.tag === 'notificaciones-sync') {
+        logMessage("Ejecutando sincronización de notificaciones...");
+        enviarNotificacion(); // Enviar notificación
+    }
+});
 
 function logMessage(message) {
     let timestamp = new Date().toLocaleTimeString();
