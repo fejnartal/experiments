@@ -34,12 +34,18 @@
         }
 
         if ('serviceWorker' in navigator && 'Notification' in window) {
-            navigator.serviceWorker.register('quotes.js').then(reg => {
-                logMessage("Service Worker registrado correctamente.");
-            }).catch(err => logMessage("Error registrando el Service Worker: " + err));
+            navigator.serviceWorker.register('./quotes.js')  // Asegúrate de usar una ruta correcta
+                .then(reg => logMessage("Service Worker registrado correctamente."))
+                .catch(err => logMessage("Error registrando el Service Worker: " + err));
         } else {
             logMessage("Este navegador no soporta Service Workers o Notificaciones.");
         }
+
+        navigator.serviceWorker.onmessage = event => {
+            if (event.data.log) {
+                logMessage(event.data.log);
+            }
+        };
 
         document.getElementById('activar').addEventListener('click', async () => {
             let permiso = await Notification.requestPermission();
