@@ -1,8 +1,6 @@
 const CACHE_KEY = "notificaciones-cache";
-const INTERVALO_MS = 60 * 1000; // 1 minuto
-let notificacionesActivas = true;
 
-self.addEventListener("install", () => {
+self.addEventListener("install", event => {
     self.skipWaiting();
     logMessage("Service Worker instalado.");
 });
@@ -14,16 +12,23 @@ self.addEventListener("activate", event => {
 
 self.addEventListener("message", async (event) => {
     if (event.data.action === "start") {
-        notificacionesActivas = true;
-        logMessage("Inicio de notificaciones.");
         await verificarYObtenerMensajes();
-        programarNotificaciones();
+        await self.registration.periodicSync.register("notificacion-periodica", {
+            minInterval: 60 * 1000 // Cada minuto
+        });
+        logMessage("Notificaciones programadas.");
     } else if (event.data.action === "stop") {
-        notificacionesActivas = false;
         await caches.delete(CACHE_KEY);
         logMessage("Notificaciones detenidas y caché eliminada.");
     } else if (event.data.action === "notify") {
         enviarNotificacion();
+    }
+});
+
+self.addEventListener("periodicsync", async event => {
+    if (event.tag === "notificacion-periodica") {
+        logMessage("Evento de notificación periódica activado.");
+        await enviarNotificacion();
     }
 });
 
@@ -82,22 +87,6 @@ async function enviarNotificacion() {
     let mensaje = await obtenerMensajeGuardado();
     self.registration.showNotification("Curiosidad", { body: mensaje });
     logMessage("Notificación enviada: " + mensaje);
-}
-
-async function programarNotificaciones() {
-    if (!notificacionesActivas) {
-        logMessage("Las notificaciones están desactivadas.");
-        return;
-    }
-
-    let permiso = await Notification.requestPermission();
-    if (permiso !== "granted") {
-        logMessage("Permiso de notificaciones denegado.");
-        return;
-    }
-
-    enviarNotificacion();
-    setTimeout(programarNotificaciones, INTERVALO_MS);
 }
 
 function logMessage(message) {
