@@ -4,28 +4,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notificaciones Automáticas</title>
+    <style>
+        textarea {
+            width: 100%;
+            height: 150px;
+            margin-top: 10px;
+            font-family: monospace;
+        }
+    </style>
 </head>
 <body>
     <h1>Prueba de Notificaciones</h1>
-    <p>Esta página intentará enviar notificaciones incluso si está cerrada.</p>
+    <p>Activa las notificaciones y cierra la pestaña para probarlas.</p>
     <button id="activar">Activar Notificaciones</button>
+    <button id="detener">Detener Notificaciones</button>
+    <h3>Logs</h3>
+    <textarea id="logs" readonly></textarea>
 
     <script>
+        function logMessage(message) {
+            let logs = localStorage.getItem("logs") || "";
+            logs += `[${new Date().toLocaleTimeString()}] ${message}\n`;
+            localStorage.setItem("logs", logs);
+            document.getElementById("logs").value = logs;
+        }
+
+        function loadLogs() {
+            document.getElementById("logs").value = localStorage.getItem("logs") || "Logs vacíos.";
+        }
+
         if ('serviceWorker' in navigator && 'Notification' in window) {
             navigator.serviceWorker.register('quotes.js').then(reg => {
-                console.log("Service Worker registrado.");
-            }).catch(err => console.error("Error al registrar el Service Worker:", err));
+                logMessage("Service Worker registrado correctamente.");
+            }).catch(err => logMessage("Error registrando el Service Worker: " + err));
+        } else {
+            logMessage("Este navegador no soporta Service Workers o Notificaciones.");
         }
 
         document.getElementById('activar').addEventListener('click', async () => {
             let permiso = await Notification.requestPermission();
             if (permiso === "granted") {
+                logMessage("Notificaciones activadas.");
                 navigator.serviceWorker.controller?.postMessage({ action: "start" });
-                alert("Notificaciones activadas. Cierra la pestaña y espera.");
             } else {
-                alert("Las notificaciones están bloqueadas.");
+                logMessage("Las notificaciones están bloqueadas.");
             }
         });
+
+        document.getElementById('detener').addEventListener('click', () => {
+            logMessage("Notificaciones detenidas.");
+            navigator.serviceWorker.controller?.postMessage({ action: "stop" });
+        });
+
+        loadLogs();
     </script>
 </body>
 </html>
