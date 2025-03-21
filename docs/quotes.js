@@ -8,27 +8,7 @@ self.addEventListener("activate", (event) => {
   console.log("Service Worker activado.");
 });
 
-self.addEventListener("push", (event) => {
-  const data = event.data.json();
-  console.log("Notificación Push recibida", data);
-
-  const options = {
-    body: data.body,
-    icon: "icon.png",
-    badge: "badge.png"
-  };
-
-  event.waitUntil(self.registration.showNotification(data.title, options));
-});
-
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-  event.waitUntil(
-    clients.openWindow(event.notification.data.url)
-  );
-});
-
-// Función para enviar una notificación
+// Función para enviar una notificación local
 function sendNotification(message) {
   self.registration.showNotification(message.title, {
     body: message.body,
@@ -38,7 +18,7 @@ function sendNotification(message) {
   console.log(`Notificación enviada: ${message.body}`);
 }
 
-// Función para ejecutar el ciclo de verificación
+// Función para ejecutar el ciclo de verificación cada 5 segundos
 function startNotificationCycle() {
   const interval = 5000; // Verificar cada 5 segundos
   setInterval(() => {
