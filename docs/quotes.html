@@ -3,28 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Notificaciones Automáticas</title>
-    <style>
-        textarea {
-            width: 100%;
-            height: 150px;
-            margin-top: 10px;
-            font-family: monospace;
-        }
-    </style>
+    <title>Prueba de Notificaciones Push</title>
 </head>
 <body>
-    <h1>Prueba de Notificaciones</h1>
-    <p>Las notificaciones aparecerán cada minuto cuando la página esté abierta y cada minuto en segundo plano.</p>
+    <h1>Prueba de Notificaciones Push</h1>
     <button id="activar">Activar Notificaciones</button>
     <button id="detener">Detener Notificaciones</button>
-    <button id="test">Mostrar Notificación Ahora</button>
     <h3>Logs</h3>
     <textarea id="logs" readonly></textarea>
 
     <script>
-        let intervalID;
-
+        // Función para loguear mensajes
         function logMessage(message) {
             let logs = localStorage.getItem("logs") || "";
             logs += `[${new Date().toLocaleTimeString()}] ${message}\n`;
@@ -32,54 +21,41 @@
             document.getElementById("logs").value = logs;
         }
 
+        // Cargar logs de almacenamiento
         function loadLogs() {
             document.getElementById("logs").value = localStorage.getItem("logs") || "Logs vacíos.";
         }
 
+        // Registrar Service Worker
         if ('serviceWorker' in navigator && 'Notification' in window) {
-            navigator.serviceWorker.getRegistration().then(reg => {
-                if (!reg) {
-                    navigator.serviceWorker.register('./quotes.js')
-                        .then(reg => logMessage("Service Worker registrado correctamente."))
-                        .catch(err => logMessage("Error registrando el Service Worker: " + err));
-                } else {
-                    logMessage("Service Worker ya estaba registrado.");
-                }
-            });
+            navigator.serviceWorker.register('quotes.js')
+                .then(reg => {
+                    logMessage("Service Worker registrado correctamente.");
+                })
+                .catch(err => {
+                    logMessage("Error al registrar el Service Worker: " + err);
+                });
         } else {
             logMessage("Este navegador no soporta Service Workers o Notificaciones.");
         }
 
-        navigator.serviceWorker.onmessage = event => {
-            if (event.data.log) logMessage(event.data.log);
-        };
-
+        // Activar notificaciones
         document.getElementById('activar').addEventListener('click', async () => {
             let permiso = await Notification.requestPermission();
             if (permiso === "granted") {
                 logMessage("Notificaciones activadas.");
-                navigator.serviceWorker.controller?.postMessage({ action: "start" });
+                // Las notificaciones se manejarán automáticamente con el Service Worker.
             } else {
                 logMessage("Las notificaciones están bloqueadas.");
             }
         });
 
+        // Detener notificaciones (solo muestra un mensaje en el log)
         document.getElementById('detener').addEventListener('click', () => {
             logMessage("Notificaciones detenidas.");
-            navigator.serviceWorker.controller?.postMessage({ action: "stop" });
         });
 
-        document.getElementById('test').addEventListener('click', async () => {
-            navigator.serviceWorker.getRegistration().then(reg => {
-                if (reg) {
-                    reg.showNotification("Prueba de Notificación", { body: "Esto es una prueba directa del SW." });
-                    logMessage("Notificación de prueba enviada.");
-                } else {
-                    logMessage("El Service Worker no está registrado.");
-                }
-            });
-        });
-
+        // Cargar los logs almacenados
         loadLogs();
     </script>
 </body>
