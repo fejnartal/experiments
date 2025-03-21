@@ -82,8 +82,8 @@ async function enviarNotificacion() {
     self.registration.showNotification("Curiosidad", { body: mensaje });
     logMessage("Notificación enviada: " + mensaje);
 
-    // Reprogramar la siguiente notificación en 5 minutos
-    setTimeout(() => enviarNotificacion(), 5 * 60 * 1000);
+    // Reprogramar la siguiente notificación en 5 segundos para pruebas
+    setTimeout(() => enviarNotificacion(), 5 * 1000);
 }
 
 function programarSiguienteNotificacion() {
