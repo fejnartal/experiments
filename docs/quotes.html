@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notificaciones Automáticas</title>
+</head>
+<body>
+    <h1>Prueba de Notificaciones</h1>
+    <p>Esta página intentará enviar notificaciones incluso si está cerrada.</p>
+    <button id="activar">Activar Notificaciones</button>
+
+    <script>
+        if ('serviceWorker' in navigator && 'Notification' in window) {
+            navigator.serviceWorker.register('quotes.js').then(reg => {
+                console.log("Service Worker registrado.");
+            }).catch(err => console.error("Error al registrar el Service Worker:", err));
+        }
+
+        document.getElementById('activar').addEventListener('click', async () => {
+            let permiso = await Notification.requestPermission();
+            if (permiso === "granted") {
+                navigator.serviceWorker.controller?.postMessage({ action: "start" });
+                alert("Notificaciones activadas. Cierra la pestaña y espera.");
+            } else {
+                alert("Las notificaciones están bloqueadas.");
+            }
+        });
+    </script>
+</body>
+</html>
