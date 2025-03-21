@@ -1,6 +1,5 @@
 const CACHE_KEY = "notificaciones-cache";
-const LOGS_KEY = "logs";
-const INTERVALO_MS = 60 * 1000; // 1 minuto para pruebas rápidas
+const INTERVALO_MS = 60 * 1000; // 1 minuto
 let notificacionesActivas = true;
 
 self.addEventListener("install", () => {
@@ -23,6 +22,8 @@ self.addEventListener("message", async (event) => {
         notificacionesActivas = false;
         await caches.delete(CACHE_KEY);
         logMessage("Notificaciones detenidas y caché eliminada.");
+    } else if (event.data.action === "notify") {
+        enviarNotificacion();
     }
 });
 
@@ -53,46 +54,33 @@ async function obtenerMensajeGuardado() {
     return "No hay mensajes guardados.";
 }
 
+async function enviarNotificacion() {
+    let mensaje = await obtenerMensajeGuardado();
+    self.registration.showNotification("Notificación", { body: mensaje });
+    logMessage("Notificación enviada: " + mensaje);
+}
+
 async function programarNotificaciones() {
     if (!notificacionesActivas) {
-        logMessage("Las notificaciones están desactivadas. No se programarán más.");
+        logMessage("Las notificaciones están desactivadas.");
         return;
     }
 
     let permiso = await Notification.requestPermission();
     if (permiso !== "granted") {
-        logMessage("Permiso de notificaciones denegado. Deteniendo.");
+        logMessage("Permiso de notificaciones denegado.");
         return;
     }
 
-    let mensaje = await obtenerMensajeGuardado();
-    self.registration.showNotification("Notificación", { body: mensaje });
-    logMessage("Notificación enviada: " + mensaje);
-
+    enviarNotificacion();
     setTimeout(programarNotificaciones, INTERVALO_MS);
 }
 
 function logMessage(message) {
     let timestamp = new Date().toLocaleTimeString();
-    let fullMessage = `[${timestamp}] ${message}\n`;
-
+    let fullMessage = `[${timestamp}] ${message}`;
     self.clients.matchAll().then(clients => {
-        clients.forEach(client => {
-            client.postMessage({ log: fullMessage });
-        });
+        clients.forEach(client => client.postMessage({ log: fullMessage }));
     });
-
-    self.registration.storage.get(LOGS_KEY).then(existingLogs => {
-        let logs = existingLogs || "";
-        logs += fullMessage;
-        self.registration.storage.set(LOGS_KEY, logs);
-    });
+    console.log(fullMessage);
 }
-
-self.addEventListener("message", (event) => {
-    if (event.data.logRequest) {
-        self.registration.storage.get(LOGS_KEY).then(logs => {
-            event.source.postMessage({ logs: logs || "No hay logs disponibles." });
-        });
-    }
-});
