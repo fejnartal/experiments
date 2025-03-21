@@ -15,7 +15,7 @@
 </head>
 <body>
     <h1>Prueba de Notificaciones</h1>
-    <p>Las notificaciones aparecerán cada minuto, incluso con la página abierta.</p>
+    <p>Las notificaciones aparecerán cada minuto, incluso con la página cerrada.</p>
     <button id="activar">Activar Notificaciones</button>
     <button id="detener">Detener Notificaciones</button>
     <button id="test">Mostrar Notificación Ahora</button>
@@ -23,8 +23,6 @@
     <textarea id="logs" readonly></textarea>
 
     <script>
-        const INTERVALO_MS = 60 * 1000; // 1 minuto
-
         function logMessage(message) {
             let logs = localStorage.getItem("logs") || "";
             logs += `[${new Date().toLocaleTimeString()}] ${message}\n`;
@@ -54,12 +52,6 @@
             if (event.data.log) logMessage(event.data.log);
         };
 
-        async function mostrarNotificacion() {
-            let mensaje = await obtenerMensajeGuardado();
-            new Notification("Notificación de prueba", { body: mensaje });
-            logMessage("Notificación manual: " + mensaje);
-        }
-
         document.getElementById('activar').addEventListener('click', async () => {
             let permiso = await Notification.requestPermission();
             if (permiso === "granted") {
@@ -76,22 +68,15 @@
         });
 
         document.getElementById('test').addEventListener('click', async () => {
-            mostrarNotificacion();
-        });
-
-        async function obtenerMensajeGuardado() {
-            let cache = await caches.open("notificaciones-cache");
-            let respuesta = await cache.match("mensajes");
-            if (respuesta) {
-                let mensajes = await respuesta.json();
-                if (mensajes.length > 0) {
-                    let mensaje = mensajes.shift();
-                    await cache.put("mensajes", new Response(JSON.stringify(mensajes)));
-                    return mensaje;
+            navigator.serviceWorker.getRegistration().then(reg => {
+                if (reg) {
+                    reg.showNotification("Prueba de Notificación", { body: "Esto es una prueba directa del SW." });
+                    logMessage("Notificación de prueba enviada.");
+                } else {
+                    logMessage("El Service Worker no está registrado.");
                 }
-            }
-            return "No hay mensajes guardados.";
-        }
+            });
+        });
 
         loadLogs();
     </script>
