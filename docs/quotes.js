@@ -1,4 +1,5 @@
 const CACHE_KEY = "notificaciones-cache";
+let programandoNotificacion = false;
 
 self.addEventListener("install", event => {
     self.skipWaiting();
@@ -12,23 +13,13 @@ self.addEventListener("activate", event => {
 
 self.addEventListener("message", async (event) => {
     if (event.data.action === "start") {
+        logMessage("Activando notificaciones automáticas.");
         await verificarYObtenerMensajes();
-        await self.registration.periodicSync.register("notificacion-periodica", {
-            minInterval: 60 * 1000 // Cada minuto
-        });
-        logMessage("Notificaciones programadas.");
+        programarSiguienteNotificacion();
     } else if (event.data.action === "stop") {
+        programandoNotificacion = false;
         await caches.delete(CACHE_KEY);
         logMessage("Notificaciones detenidas y caché eliminada.");
-    } else if (event.data.action === "notify") {
-        enviarNotificacion();
-    }
-});
-
-self.addEventListener("periodicsync", async event => {
-    if (event.tag === "notificacion-periodica") {
-        logMessage("Evento de notificación periódica activado.");
-        await enviarNotificacion();
     }
 });
 
@@ -87,6 +78,19 @@ async function enviarNotificacion() {
     let mensaje = await obtenerMensajeGuardado();
     self.registration.showNotification("Curiosidad", { body: mensaje });
     logMessage("Notificación enviada: " + mensaje);
+
+    // Programar la siguiente notificación en 1 minuto
+    if (programandoNotificacion) {
+        setTimeout(() => enviarNotificacion(), 60 * 1000);
+    }
+}
+
+function programarSiguienteNotificacion() {
+    if (!programandoNotificacion) {
+        programandoNotificacion = true;
+        logMessage("Iniciando notificaciones periódicas.");
+        enviarNotificacion();
+    }
 }
 
 function logMessage(message) {
