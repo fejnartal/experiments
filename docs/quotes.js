@@ -83,7 +83,7 @@ async function enviarNotificacion() {
     logMessage("Notificación enviada: " + mensaje);
 
     // Reprogramar la siguiente notificación en 5 segundos para pruebas
-    setTimeout(() => enviarNotificacion(), 5 * 1000);
+    setTimeout(() => enviarNotificacion(), 60 * 1000);
 }
 
 function programarSiguienteNotificacion() {
