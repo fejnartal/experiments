@@ -16,7 +16,7 @@ self.addEventListener("message", async (event) => {
     if (event.data.action === "start") {
         notificacionesActivas = true;
         logMessage("Inicio de notificaciones.");
-        await obtenerMensajes();
+        await verificarYObtenerMensajes();
         programarNotificaciones();
     } else if (event.data.action === "stop") {
         notificacionesActivas = false;
@@ -27,13 +27,29 @@ self.addEventListener("message", async (event) => {
     }
 });
 
+async function verificarYObtenerMensajes() {
+    let cache = await caches.open(CACHE_KEY);
+    let respuesta = await cache.match("mensajes");
+
+    if (!respuesta || (await respuesta.json()).length === 0) {
+        await obtenerMensajes();
+    }
+}
+
 async function obtenerMensajes() {
     try {
-        let res = await fetch("https://api.quotable.io/quotes?limit=5");
-        let datos = await res.json();
-        let mensajes = datos.results.map(q => q.content);
+        logMessage("Solicitando nuevos mensajes...");
+        let mensajes = [];
+
+        for (let i = 0; i < 5; i++) {
+            let res = await fetch("https://uselessfacts.jsph.pl/random.json?language=en");
+            let dato = await res.json();
+            mensajes.push(dato.text);
+        }
+
         let cache = await caches.open(CACHE_KEY);
         await cache.put("mensajes", new Response(JSON.stringify(mensajes)));
+
         logMessage("Mensajes obtenidos y guardados en caché.");
     } catch (err) {
         logMessage("Error obteniendo mensajes: " + err);
@@ -43,20 +59,28 @@ async function obtenerMensajes() {
 async function obtenerMensajeGuardado() {
     let cache = await caches.open(CACHE_KEY);
     let respuesta = await cache.match("mensajes");
+
     if (respuesta) {
         let mensajes = await respuesta.json();
         if (mensajes.length > 0) {
             let mensaje = mensajes.shift();
             await cache.put("mensajes", new Response(JSON.stringify(mensajes)));
+
+            if (mensajes.length === 0) {
+                logMessage("No quedan mensajes en caché. Solicitando más...");
+                obtenerMensajes();
+            }
+
             return mensaje;
         }
     }
+
     return "No hay mensajes guardados.";
 }
 
 async function enviarNotificacion() {
     let mensaje = await obtenerMensajeGuardado();
-    self.registration.showNotification("Notificación", { body: mensaje });
+    self.registration.showNotification("Curiosidad", { body: mensaje });
     logMessage("Notificación enviada: " + mensaje);
 }
 
