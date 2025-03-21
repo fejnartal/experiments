@@ -15,13 +15,16 @@
 </head>
 <body>
     <h1>Prueba de Notificaciones</h1>
-    <p>Activa las notificaciones y cierra la pestaña para probarlas.</p>
+    <p>Las notificaciones aparecerán cada minuto, incluso con la página abierta.</p>
     <button id="activar">Activar Notificaciones</button>
     <button id="detener">Detener Notificaciones</button>
     <h3>Logs</h3>
     <textarea id="logs" readonly></textarea>
 
     <script>
+        const INTERVALO_MS = 60 * 1000; // 1 minuto
+        let paginaAbierta = true;
+
         function logMessage(message) {
             let logs = localStorage.getItem("logs") || "";
             logs += `[${new Date().toLocaleTimeString()}] ${message}\n`;
@@ -34,7 +37,7 @@
         }
 
         if ('serviceWorker' in navigator && 'Notification' in window) {
-            navigator.serviceWorker.register('./quotes.js')  // Asegúrate de usar una ruta correcta
+            navigator.serviceWorker.register('./quotes.js')
                 .then(reg => logMessage("Service Worker registrado correctamente."))
                 .catch(err => logMessage("Error registrando el Service Worker: " + err));
         } else {
@@ -42,16 +45,25 @@
         }
 
         navigator.serviceWorker.onmessage = event => {
-            if (event.data.log) {
-                logMessage(event.data.log);
-            }
+            if (event.data.log) logMessage(event.data.log);
         };
+
+        async function mostrarNotificacion() {
+            if (document.hidden) {
+                navigator.serviceWorker.controller?.postMessage({ action: "notify" });
+            } else {
+                let mensaje = await obtenerMensajeGuardado();
+                new Notification("Notificación", { body: mensaje });
+                logMessage("Notificación en página: " + mensaje);
+            }
+        }
 
         document.getElementById('activar').addEventListener('click', async () => {
             let permiso = await Notification.requestPermission();
             if (permiso === "granted") {
                 logMessage("Notificaciones activadas.");
                 navigator.serviceWorker.controller?.postMessage({ action: "start" });
+                setInterval(mostrarNotificacion, INTERVALO_MS);
             } else {
                 logMessage("Las notificaciones están bloqueadas.");
             }
@@ -61,6 +73,20 @@
             logMessage("Notificaciones detenidas.");
             navigator.serviceWorker.controller?.postMessage({ action: "stop" });
         });
+
+        async function obtenerMensajeGuardado() {
+            let cache = await caches.open("notificaciones-cache");
+            let respuesta = await cache.match("mensajes");
+            if (respuesta) {
+                let mensajes = await respuesta.json();
+                if (mensajes.length > 0) {
+                    let mensaje = mensajes.shift();
+                    await cache.put("mensajes", new Response(JSON.stringify(mensajes)));
+                    return mensaje;
+                }
+            }
+            return "No hay mensajes guardados.";
+        }
 
         loadLogs();
     </script>
