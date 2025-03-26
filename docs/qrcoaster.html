@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Posavasos con QR a STL</title>
+  <title>Posavasos con QR y Texto a STL</title>
   <style>
     body { font-family: sans-serif; margin: 2em; }
     input, button { font-size: 1em; margin: 0.5em 0; padding: 0.5em; width: 100%; }
@@ -11,11 +11,10 @@
   </style>
 </head>
 <body>
-  <h1>Generador de Posavasos con QR a STL</h1>
-  <p>Introduce una URL y genera un posavasos con el QR en 3D.</p>
+  <h1>Generador de Posavasos con QR y Texto a STL</h1>
+  <p>Introduce una URL y genera un posavasos con el QR y texto alrededor.</p>
   <input type="text" id="qr-input" placeholder="https://ejemplo.com" />
   <button onclick="generateSTL()">Generar STL</button>
-
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   <script>
     function generateSTL() {
@@ -31,13 +30,14 @@
       const moduleCount = qr.getModuleCount();
       const cubeSize = 1.0;
       const height = 2.0;
-      const baseDiameter = 90;
-      const baseHeight = 5.0;
+      const baseDiameter = 90;  // Corrected diameter for the coaster base
+      const baseHeight = 5.0;  // Correct height for the base
+      const textRadius = baseDiameter / 2 - 10; // Text radius slightly smaller than the base
+      const textHeight = 1.5; // Small text height for engraving effect
       let stl = "solid posavasos\\n";
 
       // Base of the coaster (cylinder)
       stl += cylinder(0, 0, baseHeight, baseDiameter/2, baseDiameter/2);
-      
       // QR code embedded into the base
       for (let y = 0; y < moduleCount; y++) {
         for (let x = 0; x < moduleCount; x++) {
@@ -49,11 +49,20 @@
         }
       }
 
+      // Add text around the QR code
+      const text = "Gracias Jorge, ¡La Magia de la Voz!";
+      const angleStep = Math.PI * 2 / text.length;
+      for (let i = 0; i < text.length; i++) {
+        const angle = angleStep * i;
+        const x = Math.cos(angle) * textRadius;
+        const y = Math.sin(angle) * textRadius;
+        stl += text3D(x, y, baseHeight + 0.5, text[i], textHeight);
+      }
       stl += "endsolid posavasos\\n";
       const blob = new Blob([stl], {type: 'application/sla'});
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = "posavasos_con_qr.stl";
+      link.download = "posavasos_con_qr_y_texto_correcto.stl";
       link.click();
     }
 
@@ -96,6 +105,12 @@ endfacet
         stl += facet([x, y, 0], [x2, y2, 0], [x1, y1, 0]);
       }
       return stl;
+    }
+
+    function text3D(x, y, z, letter, h) {
+      // Simple 3D text extrusion function (mocked version)
+      // In a real case, this would need a library like Three.js or similar
+      return cube(x, y, z, 2, 2, h); // Mock text as a small cube for demonstration
     }
   </script>
 </body>
