@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>QR to STL Generator</title>
+  <title>Posavasos con QR a STL</title>
   <style>
     body { font-family: sans-serif; margin: 2em; }
     input, button { font-size: 1em; margin: 0.5em 0; padding: 0.5em; width: 100%; }
@@ -11,8 +11,8 @@
   </style>
 </head>
 <body>
-  <h1>QR Code to STL Generator</h1>
-  <p>Introduce una URL y genera un STL con el QR en 3D.</p>
+  <h1>Generador de Posavasos con QR a STL</h1>
+  <p>Introduce una URL y genera un posavasos con el QR en 3D.</p>
   <input type="text" id="qr-input" placeholder="https://ejemplo.com" />
   <button onclick="generateSTL()">Generar STL</button>
 
@@ -31,23 +31,29 @@
       const moduleCount = qr.getModuleCount();
       const cubeSize = 1.0;
       const height = 2.0;
-      let stl = "solid qr\n";
+      const baseDiameter = 90;
+      const baseHeight = 5.0;
+      let stl = "solid posavasos\\n";
 
+      // Base of the coaster (cylinder)
+      stl += cylinder(0, 0, baseHeight, baseDiameter/2, baseDiameter/2);
+      
+      // QR code embedded into the base
       for (let y = 0; y < moduleCount; y++) {
         for (let x = 0; x < moduleCount; x++) {
           if (qr.isDark(y, x)) {
-            const px = x * cubeSize;
-            const py = y * cubeSize;
-            stl += cube(px, py, 0, cubeSize, cubeSize, height);
+            const px = (x - moduleCount / 2) * cubeSize;
+            const py = (y - moduleCount / 2) * cubeSize;
+            stl += cube(px, py, baseHeight, cubeSize, cubeSize, height);
           }
         }
       }
 
-      stl += "endsolid qr\n";
+      stl += "endsolid posavasos\\n";
       const blob = new Blob([stl], {type: 'application/sla'});
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = "qr_code.stl";
+      link.download = "posavasos_con_qr.stl";
       link.click();
     }
 
@@ -74,6 +80,22 @@ facet normal 0 0 0
   endloop
 endfacet
 `;
+    }
+
+    function cylinder(x, y, h, r1, r2) {
+      const numSegments = 32;
+      let stl = "";
+      for (let i = 0; i < numSegments; i++) {
+        const theta1 = (i / numSegments) * 2 * Math.PI;
+        const theta2 = ((i+1) / numSegments) * 2 * Math.PI;
+        const x1 = x + r1 * Math.cos(theta1);
+        const y1 = y + r1 * Math.sin(theta1);
+        const x2 = x + r2 * Math.cos(theta2);
+        const y2 = y + r2 * Math.sin(theta2);
+        stl += facet([x, y, h], [x1, y1, h], [x2, y2, h]);
+        stl += facet([x, y, 0], [x2, y2, 0], [x1, y1, 0]);
+      }
+      return stl;
     }
   </script>
 </body>
