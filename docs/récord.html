@@ -19,18 +19,14 @@
     let mediaRecorder;
     let recordedChunks = [];
 
-    // Configuración de la captura
+    // Configuración de la captura (sin restricciones exactas)
     const captureOptions = {
       video: {
-        frameRate: { ideal: 15, max: 15 }, // 15 fps para garantizar estabilidad
-        width: { ideal: 640 },
+        frameRate: { ideal: 15 }, // 15 fps para garantizar estabilidad
+        width: { ideal: 640 },    // Resolución de 640x480
         height: { ideal: 480 }
       },
-      audio: {
-        mandatory: {
-          chromeMediaSource: 'system' // Capturar audio del sistema
-        }
-      }
+      audio: true // Capturar audio por defecto
     };
 
     // Iniciar la grabación
