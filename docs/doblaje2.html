@@ -3,82 +3,97 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sincronización de Audio y Colaboración en Doblaje con YouTube</title>
-  <!-- Cargamos la API de YouTube -->
+  <title>Web de Doblaje Colaborativo</title>
+  <!-- YouTube Iframe API -->
   <script src="https://www.youtube.com/iframe_api"></script>
-  <!-- Cargamos PeerJS para la conexión P2P -->
+  <!-- PeerJS para WebRTC -->
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; background-color: #f0f0f0; margin-bottom: 80px; }
+    body { font-family: Arial, sans-serif; background-color: #f0f0f0; margin-bottom: 120px; }
     h1, h2, h3 { margin: 10px 0; }
     #video-container { width: 100%; max-width: 800px; margin: auto; position: relative; }
     iframe { width: 100%; height: 450px; }
-    /* Div transparente para bloquear interacción directa en el video */
+    /* Overlay para evitar interacción directa con el iframe */
     #video-overlay {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       z-index: 999; background: transparent;
     }
-    #countdown-overlay {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0, 0, 0, 0.8); color: white; display: flex;
-      justify-content: center; align-items: center; font-size: 5rem;
-      font-weight: bold; display: none; z-index: 1000;
+    /* Controles principales */
+    #controls-container { margin: 10px auto; max-width: 800px; display: flex; justify-content: center; gap: 10px; }
+    #controls-container button { padding: 10px 20px; font-size: 16px; }
+    /* Switch de mute estilo moderno */
+    .switch {
+      position: relative; display: inline-block; width: 60px; height: 34px;
     }
-    #controls-container { margin-top: 10px; }\n    #controls-container button { padding: 10px 20px; font-size: 16px; margin: 5px; }
-    #sync-container { margin: 10px 0; }\n    #sync-container input[type=range] { width: 300px; }\n    #sync-container span { font-weight: bold; }\n    #recording-list { margin-top: 20px; text-align: left; max-width: 800px; margin-left: auto; margin-right: auto; }\n    .recording-item { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }\n    footer { position: fixed; bottom: 0; width: 100%; background: #333; color: #fff; text-align: center; padding: 5px; }\n    /* Estilo para el switch de mute */\n    .switch {\n      position: relative;\n      display: inline-block;\n      width: 60px;\n      height: 34px;\n    }\n    .switch input { opacity: 0; width: 0; height: 0; }\n    .slider {\n      position: absolute;\n      cursor: pointer;\n      top: 0;\n      left: 0;\n      right: 0;\n      bottom: 0;\n      background-color: #ccc;\n      transition: .4s;\n      border-radius: 34px;\n    }\n    .slider:before {\n      position: absolute;\n      content: \"\";\n      height: 26px;\n      width: 26px;\n      left: 4px;\n      bottom: 4px;\n      background-color: white;\n      transition: .4s;\n      border-radius: 50%;\n    }\n    input:checked + .slider {\n      background-color: #2196F3;\n    }\n    input:checked + .slider:before {\n      transform: translateX(26px);\n    }\n    /* Estilos para la sección P2P */\n    #p2p-container { margin-top: 20px; }\n    #remote-video, #local-video { width: 300px; height: 200px; background: #000; margin: 5px; }\n    #annotations { margin-top: 20px; }\n    #annotations textarea { width: 100%; max-width: 800px; height: 100px; }\n  </style>
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #ccc; transition: .4s; border-radius: 34px;
+    }
+    .slider:before {
+      position: absolute; content: \"\"; height: 26px; width: 26px;
+      left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%;
+    }
+    input:checked + .slider { background-color: #2196F3; }
+    input:checked + .slider:before { transform: translateX(26px); }
+    /* Slider para sincronización y seek */
+    #sync-container, #seek-container { margin: 10px auto; max-width: 800px; }\n    #sync-container input[type=range], #seek-container input[type=range] { width: 300px; }\n    #sync-container span, #seek-container span { font-weight: bold; }\n    /* Área de anotaciones */\n    #annotations { margin: 20px auto; max-width: 800px; }\n    #annotations textarea { width: 100%; height: 100px; }\n    /* Lista de grabaciones */\n    #recording-list { margin-top: 20px; max-width: 800px; margin-left: auto; margin-right: auto; text-align: left; }\n    .recording-item { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }\n    .recording-item button { background: red; color: white; border: none; padding: 5px; cursor: pointer; }\n    footer { position: fixed; bottom: 0; width: 100%; background: #333; color: #fff; text-align: center; padding: 5px; }\n    /* Contenedor P2P */\n    #p2p-container { margin: 20px auto; max-width: 800px; }\n    #local-video, #remote-video { width: 300px; height: 200px; background: #000; margin: 5px; }\n  </style>
 </head>
 <body>
 
-<!-- Contenedor del video de YouTube -->
+<!-- Contenedor del vídeo de YouTube -->
 <div id="video-container">
-  <div id="countdown-overlay"></div>
+  <div id="player"></div>
   <div id="video-overlay"></div>
 </div>
 
-<!-- Controles de carga del video -->
-<div>
+<!-- Controles para cargar el vídeo -->
+<div style="margin: 10px;">
   <input type="text" id="youtube-url" placeholder="Pega la URL de YouTube aquí">
   <button id="load-video">Cargar Video</button>
 </div>
 
-<!-- Controles para sincronización y mute -->
+<!-- Controles principales -->
 <div id="controls-container">
-  <button id="btn-play" disabled>Reproducir</button>
-  <button id="btn-stop" disabled>Detener</button>
-  <label class="switch">
+  <button id="btn-play" disabled>Play</button>
+  <button id="btn-stop" disabled>Stop</button>
+  <button id="btn-record" disabled>Record</button>
+  <button id="btn-export" disabled>Export</button>
+  <div class="switch">
     <input type="checkbox" id="btn-mute">
     <span class="slider"></span>
-  </label>
+  </div>
   <span id="mute-label">Volume 100%</span>
+</div>
+
+<!-- Slider de seek para controlar el tiempo del vídeo -->
+<div id="seek-container">
+  <label for="seek-slider">Posición del vídeo:</label>
+  <input type="range" id="seek-slider" min="0" max="100" step="0.1" value="0">
+  <span id="current-time">0:00</span>
 </div>
 
 <!-- Slider para ajustar sincronización de audios -->
 <div id="sync-container">
-  <label for="sync-adjust">Ajuste de sincronización (ms): </label>
-  <input type="range" id="sync-adjust" min="-2000" max="2000" step="1" value="0">
+  <label for="sync-adjust">Ajuste de sincronización (ms):</label>
+  <input type="range" id="sync-adjust" min="-2000" max="2000" step="10" value="0">
   <span id="sync-value">0 ms</span>
 </div>
 
-<!-- Checkbox para deshabilitar la grabación -->
-<div>
-  <label>
-    <input type="checkbox" id="disable-recording"> Deshabilitar grabación
-  </label>
-</div>
-
-<!-- Área de anotaciones personales -->
+<!-- Área de anotaciones privadas -->
 <div id="annotations">
   <h3>Anotaciones personales</h3>
   <textarea id="notes" placeholder="Escribe tus notas aquí..."></textarea>
 </div>
 
-<!-- Sección de colaboración P2P con PeerJS -->
+<!-- Contenedor P2P para colaboración en tiempo real -->
 <div id="p2p-container">
   <h3>Colaboración en tiempo real</h3>
   <p>Tu ID de sesión: <span id="my-id"></span></p>
   <input type="text" id="remote-id" placeholder="Código de sesión para unirse">
-  <button id="connect-peer">Conectar</button>
-  <div>\n    <video id="local-video" autoplay muted playsinline></video>\n    <video id="remote-video" autoplay playsinline></video>\n  </div>\n  <p>Comparte el siguiente enlace para unirte a la sesión: <span id=\"session-link\"></span></p>\n</div>
+  <button id="btn-join">Join</button>
+  <button id="btn-host">Host</button>
+  <div>\n  <video id="local-video" autoplay muted playsinline></video>\n  <video id="remote-video" autoplay playsinline></video>\n  </div>\n  <p>Comparte el siguiente enlace para unirte a la sesión: <span id=\"session-link\"></span></p>\n</div>
 
 <!-- Lista de grabaciones -->
 <h2>Grabaciones</h2>
@@ -87,150 +102,286 @@
 <footer>Versión 1.0.36 - 2025-03-19</footer>
 
 <script>
-  // Variables globales
+  /* VARIABLES GLOBALES */
   let player;
-  let mediaRecorder, stream;
+  let mediaRecorder, stream, finalStream;
   let isRecording = false;
   let isCountdownActive = false;
   let lastPlayTimestamp = 0;
-  let recordings = []; // Cada grabación: { audio, timestamp } (timestamp en milisegundos)
-  let disableRecording = false;
-  let triggers = [];
+  let recordings = []; // Cada grabación: { audio, timestamp } (timestamp en ms)
+  let triggers = [];   // Triggers programados para sincronizar audios
   let syncAdjustment = 0;
-
-  // PeerJS para colaboración P2P
-  let peer = new Peer();
-  peer.on('open', id => {
-      document.getElementById("my-id").textContent = id;
-      const url = new URL(window.location.href);
-      url.searchParams.set("session", id);
-      document.getElementById("session-link").textContent = url.toString();
+  
+  /* YouTube Iframe API */
+  function onYouTubeIframeAPIReady() {
+    // Se carga cuando se llama a loadVideo
+  }
+  
+  function loadVideo(videoId) {
+    if (!videoId) return console.error("Error: ID de video no válido.");
+    document.getElementById("video-container").innerHTML = `<div id="player"></div><div id="video-overlay"></div>`;
+    player = new YT.Player("player", {
+      height: "450",
+      width: "100%",
+      videoId: videoId,
+      playerVars: { controls: 0, disablekb: 1 },
+      events: { "onReady": onPlayerReady, "onStateChange": onPlayerStateChange }
+    });
+  }
+  
+  function onPlayerReady(event) {
+    document.getElementById("btn-play").disabled = false;
+    document.getElementById("btn-stop").disabled = false;
+    document.getElementById("btn-record").disabled = false;
+    document.getElementById("btn-export").disabled = false;
+    updateSeekSlider();
+  }
+  
+  /* Controles de reproducción */
+  document.getElementById("btn-play").addEventListener("click", () => {
+    if (player) {
+      player.playVideo();
+      updateControlStates(true);
+    }
   });
-  peer.on('call', call => {
-      navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-          call.answer(stream);
-          document.getElementById("local-video").srcObject = stream;
-          call.on('stream', remoteStream => {
-              document.getElementById("remote-video").srcObject = remoteStream;
-          });
-      });
+  
+  document.getElementById("btn-stop").addEventListener("click", () => {
+    if (player) {
+      player.pauseVideo();
+      stopRecording();
+      updateControlStates(false);
+    }
   });
-  document.getElementById("connect-peer").addEventListener("click", () => {
-      const remoteId = document.getElementById("remote-id").value;
-      navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-          const call = peer.call(remoteId, stream);
-          document.getElementById("local-video").srcObject = stream;
-          call.on('stream', remoteStream => {
-              document.getElementById("remote-video").srcObject = remoteStream;
-          });
-      });
-  });
-  // Fin PeerJS
-
-  // Slider para ajustar sincronización
-  document.getElementById("sync-adjust").addEventListener("input", function () {
-      syncAdjustment = parseInt(this.value, 10);
-      document.getElementById("sync-value").textContent = `${syncAdjustment} ms`;
-  });
-
-  // Switch para mute/unmute del vídeo
+  
+  function updateControlStates(isActive) {
+    document.getElementById("btn-play").disabled = isActive;
+    document.getElementById("btn-record").disabled = isActive;
+    document.getElementById("btn-export").disabled = isActive;
+    document.getElementById("btn-stop").disabled = !isActive;
+  }
+  
+  /* Mute switch */
   const btnMute = document.getElementById("btn-mute");
   const muteLabel = document.getElementById("mute-label");
-  btnMute.addEventListener("change", function() {
-      if (this.checked) {
-          player && player.mute();
-          muteLabel.textContent = "Volume 0%";
-      } else {
-          player && player.unMute();
-          muteLabel.textContent = "Volume 100%";
-      }
+  btnMute.addEventListener("change", () => {
+    if (player) {
+      if (btnMute.checked) { player.mute(); muteLabel.textContent = "Volume 0%"; }
+      else { player.unMute(); muteLabel.textContent = "Volume 100%"; }
+    }
   });
-
-  // Carga del vídeo de YouTube
-  function getYouTubeVideoId(url) {
-      const regExp = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-      const match = url.match(regExp);
-      return match ? match[1] : null;
+  
+  /* Slider de seek */
+  const seekSlider = document.getElementById("seek-slider");
+  seekSlider.addEventListener("input", () => {
+    if (player && player.getDuration) {
+      player.seekTo(seekSlider.value, true);
+    }
+  });
+  
+  function updateSeekSlider() {
+    if (player && player.getCurrentTime && player.getDuration) {
+      let current = player.getCurrentTime();
+      let duration = player.getDuration();
+      seekSlider.max = duration;
+      seekSlider.value = current;
+      document.getElementById("current-time").textContent = formatTime(current);
+    }
   }
-
-  function loadYouTubeVideo(videoId) {
-      if (!videoId) return console.error("Error: ID de video no válido.");
-      document.getElementById("video-container").innerHTML = `<div id="player"></div>`;
-      player = new YT.Player("player", {
-          height: "450",
-          width: "100%",
-          videoId: videoId,
-          events: { "onStateChange": onPlayerStateChange }
-      });
-  }
-
-  // Preparar grabación con MediaRecorder y almacenar audio junto con el timestamp (en milisegundos)
+  setInterval(updateSeekSlider, 500);
+  
+  /* Slider de sincronización global */
+  document.getElementById("sync-adjust").addEventListener("input", function () {
+    syncAdjustment = parseInt(this.value, 10);
+    document.getElementById("sync-value").textContent = `${syncAdjustment} ms`;
+  });
+  
+  /* Grabación de la pestaña: Exportar vídeo final (video + audio superpuestos) */
+  let recordedChunks = [];
+  let recorder;
+  document.getElementById("btn-export").addEventListener("click", async () => {
+    try {
+      // Capturar la pestaña (video y audio, incluyendo pantalla completa)
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      recorder = new MediaRecorder(displayStream, { mimeType: "video/webm; codecs=vp9" });
+      recordedChunks = [];
+      recorder.ondataavailable = e => { if(e.data.size > 0) recordedChunks.push(e.data); };
+      recorder.start();
+      setTimeout(() => {
+        recorder.stop();
+        recorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: "video/webm" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "doblaje.webm";
+          a.click();
+        };
+      }, 5000); // Graba 5 segundos (ejemplo). Puedes ajustar.\n    } catch (e) {\n      console.error(\"Error al iniciar exportación:\", e);\n    }\n  });
+  
+  /* Funciones de grabación de audio sincronizada */
   async function prepareRecording() {
-      if (disableRecording) return;
-      try {
-          if (!stream) {
-              stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          }
-          mediaRecorder = new MediaRecorder(stream);
-          mediaRecorder.ondataavailable = event => {
-              if (event.data.size > 0) {
-                  // Guardamos el timestamp actual en milisegundos
-                  addAudioToList(event.data, Math.floor(lastPlayTimestamp * 1000));
-              }
-          };
-          console.log("MediaRecorder listo.");
-      } catch (error) {
-          console.error(`Error al acceder al micrófono: ${error.message}`);
+    if (disableRecording) return;
+    try {
+      if (!stream) {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0) {
+          // Guardamos el timestamp en milisegundos
+          addAudioToList(event.data, Math.floor(lastPlayTimestamp * 1000));
+        }
+      };
+      console.log("MediaRecorder listo.");
+    } catch (error) {
+      console.error(`Error al acceder al micrófono: ${error.message}`);
+    }
   }
-
+  
   function startRecording() {
-      if (isRecording || disableRecording) return;
-      mediaRecorder.start();
-      isRecording = true;
+    if (isRecording || disableRecording) return;
+    mediaRecorder.start();
+    isRecording = true;
   }
-
+  
   function stopRecording() {
-      if (isRecording) {
-          mediaRecorder.stop();
-          isRecording = false;
-      }
-      // Pausar todos los audios activos
-      recordings.forEach(recording => { recording.audio.pause(); });
-      // Limpiar triggers pendientes
+    if (isRecording) {
+      mediaRecorder.stop();
+      isRecording = false;
+    }
+    // Pausar todos los audios activos
+    recordings.forEach(recording => { recording.audio.pause(); });
+    // Eliminar todos los triggers programados
+    if (!isCountdownActive) {
       triggers.forEach(trigger => clearTimeout(trigger.timeout));
       triggers = [];
+    }
   }
-
-  // Mostrar cuenta atrás y, al finalizar, ejecutar callbackAfter
+  
   function showCountdown(callbackBefore, callbackAfter) {
-      if (isCountdownActive) return;
-      isCountdownActive = true;
-      const countdownOverlay = document.getElementById("countdown-overlay");
-      countdownOverlay.style.display = "flex";
-      let countdown = 3;
+    if (isCountdownActive) return;
+    isCountdownActive = true;
+  
+    const countdownOverlay = document.getElementById("countdown-overlay");
+    countdownOverlay.style.display = "flex";
+  
+    let countdown = 3;
+    countdownOverlay.textContent = countdown;
+    callbackBefore();
+  
+    const countdownInterval = setInterval(() => {
+      countdown--;
       countdownOverlay.textContent = countdown;
-      callbackBefore();
-      const countdownInterval = setInterval(() => {
-          countdown--;
-          countdownOverlay.textContent = countdown;
-          if (countdown === 0) {
-              clearInterval(countdownInterval);
-              countdownOverlay.style.display = "none";
-              isCountdownActive = false;
-              callbackAfter();
-          }
-      }, 1000);
+  
+      if (countdown === 0) {
+        clearInterval(countdownInterval);
+        countdownOverlay.style.display = "none";
+        isCountdownActive = false;
+        callbackAfter();
+      }
+    }, 1000);
   }
-
-  // Manejador del cambio de estado del video
+  
   function onPlayerStateChange(event) {
-      if (event.data === YT.PlayerState.PLAYING) {
-          console.log("El video ha comenzado a reproducirse.");
-          lastPlayTimestamp = player.getCurrentTime();
-          if (isCountdownActive) {
-              isCountdownActive = false;
-              executeTriggers(); // Ejecutar triggers si ya se calculó\n              return;\n          }\n          player.pauseVideo();\n          showCountdown(async () => {\n              await prepareRecording();\n              // Durante el countdown, calcular triggers basados en el tiempo actual\n              scheduleAudioTriggers();\n          }, () => {\n              startRecording();\n              executeTriggers();\n              player.seekTo(lastPlayTimestamp, true);\n              player.playVideo();\n          });\n      } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {\n          console.log(\"El video se ha pausado o terminado.\");\n          stopRecording();\n      }\n  }\n\n  // Agregar grabación a la lista, guardando el timestamp (en milisegundos) y creando triggers más adelante\n  function addAudioToList(audioBlob, timestamp) {\n      const url = URL.createObjectURL(audioBlob);\n      const list = document.getElementById(\"recording-list\");\n\n      const listItem = document.createElement(\"li\");\n      listItem.classList.add(\"recording-item\");\n\n      const audio = document.createElement(\"audio\");\n      audio.controls = true;\n      audio.src = url;\n\n      const timestampLabel = document.createElement(\"span\");\n      timestampLabel.textContent = `(${formatTime(timestamp / 1000)})`;\n\n      const downloadButton = document.createElement(\"a\");\n      downloadButton.href = url;\n      downloadButton.download = `grabacion-${recordings.length + 1}.wav`;\n      downloadButton.textContent = \"Descargar\";\n\n      listItem.appendChild(audio);\n      listItem.appendChild(timestampLabel);\n      listItem.appendChild(downloadButton);\n      list.appendChild(listItem);\n\n      recordings.push({ audio: audio, timestamp: timestamp });\n  }\n\n  function formatTime(seconds) {\n      const minutes = Math.floor(seconds / 60);\n      const sec = Math.floor(seconds % 60);\n      return `${minutes}:${sec.toString().padStart(2, '0')}`;\n  }\n\n  // Calcular triggers durante el countdown, sin iniciar aún\n  function scheduleAudioTriggers() {\n      const currentTime = player.getCurrentTime();\n      triggers = [];\n      recordings.forEach((recording) => {\n          const audioStart = recording.timestamp / 1000; // en segundos\n          const delay = (audioStart - currentTime) * 1000; // en ms\n          console.log(`Trigger para audio programado en ${delay} ms (ajuste: ${syncAdjustment} ms)`);\n          triggers.push({ audio: recording.audio, timeToPlay: delay });\n      });\n  }\n\n  // Ejecutar los triggers calculados, aplicando el ajuste de sincronización\n  function executeTriggers() {\n      triggers.forEach((trigger) => {\n          const adjustedDelay = trigger.timeToPlay + syncAdjustment;\n          console.log(`Ejecutando trigger en ${adjustedDelay} ms`);\n          trigger.timeout = setTimeout(() => {\n              trigger.audio.currentTime = 0;\n              trigger.audio.play().catch(error => console.warn(\"Reproducción bloqueada:\", error));\n          }, Math.max(0, adjustedDelay));\n      });\n  }\n\n  document.getElementById(\"load-video\").addEventListener(\"click\", function () {\n      const url = document.getElementById(\"youtube-url\").value;\n      const videoId = getYouTubeVideoId(url);\n      if (videoId) {\n          loadYouTubeVideo(videoId);\n      } else {\n          console.error(\"URL de YouTube no válida.\");\n      }\n  });\n\n  document.getElementById(\"disable-recording\").addEventListener(\"change\", function () {\n      disableRecording = this.checked;\n  });\n</script>
+    if (event.data === YT.PlayerState.PLAYING) {
+      console.log("El video ha comenzado a reproducirse.");
+      lastPlayTimestamp = player.getCurrentTime();
+  
+      if (isCountdownActive) {
+        isCountdownActive = false;
+        executeTriggers();
+        return;
+      }
+  
+      player.pauseVideo();
+  
+      showCountdown(async () => {
+        await prepareRecording();
+        // Durante el countdown, calcular triggers basados en el tiempo actual
+        scheduleAudioTriggers();
+      }, () => {
+        startRecording();
+        executeTriggers();
+        player.seekTo(lastPlayTimestamp, true);
+        player.playVideo();
+      });
+  
+    } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
+      console.log("El video se ha pausado o terminado.");
+      stopRecording();
+    }
+  }
+  
+  function addAudioToList(audioBlob, timestamp) {
+    const url = URL.createObjectURL(audioBlob);
+    const list = document.getElementById("recording-list");
+  
+    const listItem = document.createElement("li");
+    listItem.classList.add("recording-item");
+  
+    const audio = document.createElement("audio");
+    audio.controls = true;
+    audio.src = url;
+  
+    const timestampLabel = document.createElement("span");
+    timestampLabel.textContent = `(${formatTime(timestamp / 1000)})`;
+  
+    const downloadButton = document.createElement("a");
+    downloadButton.href = url;
+    downloadButton.download = `grabacion-${recordings.length + 1}.wav`;
+    downloadButton.textContent = "Descargar";
+  
+    listItem.appendChild(audio);
+    listItem.appendChild(timestampLabel);
+    listItem.appendChild(downloadButton);
+    list.appendChild(listItem);
+  
+    recordings.push({ audio: audio, timestamp: timestamp });
+  }
+  
+  function formatTime(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const sec = Math.floor(seconds % 60);
+    return `${minutes}:${sec.toString().padStart(2, '0')}`;
+  }
+  
+  function scheduleAudioTriggers() {
+    const currentTime = player.getCurrentTime();
+    triggers = [];
+  
+    recordings.forEach((recording) => {
+      const audioStart = recording.timestamp / 1000; // En segundos
+      const delay = (audioStart - currentTime) * 1000; // En ms
+      console.log(`Trigger para audio programado en ${delay} ms (ajuste: ${syncAdjustment} ms)`);
+      triggers.push({ audio: recording.audio, timeToPlay: delay });
+    });
+  }
+  
+  function executeTriggers() {
+    triggers.forEach((trigger) => {
+      const adjustedDelay = trigger.timeToPlay + syncAdjustment;
+      console.log(`Ejecutando trigger en ${adjustedDelay} ms`);
+      trigger.timeout = setTimeout(() => {
+        trigger.audio.currentTime = 0;
+        trigger.audio.play().catch(error => console.warn("Reproducción bloqueada:", error));
+      }, Math.max(0, adjustedDelay));
+    });
+  }
+  
+  document.getElementById("load-video").addEventListener("click", function () {
+    const url = document.getElementById("youtube-url").value;
+    const videoId = getYouTubeVideoId(url);
+    if (videoId) {
+      loadYouTubeVideo(videoId);
+    } else {
+      console.error("URL de YouTube no válida.");
+    }
+  });
+  
+  document.getElementById("disable-recording").addEventListener("change", function () {
+    disableRecording = this.checked;
+  });
+</script>
 
 </body>
 </html>
