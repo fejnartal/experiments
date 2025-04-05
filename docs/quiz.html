@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mini Kahoot Casero</title>
+  <!-- Estilos CSS -->
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0; }
+    .container { max-width: 800px; margin: 20px auto; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+    h1, h2 { text-align: center; }
+    .hidden { display: none; }
+    .btn { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .btn:hover { background: #0056b3; }
+    input[type="text"] { padding: 8px; width: 80%; margin: 5px 0; }
+    .answer-btn { display: block; width: 100%; margin: 8px 0; }
+    ul { list-style: none; padding: 0; }
+    li { margin: 5px 0; }
+    .score { font-weight: bold; }
+  </style>
+  <!-- Cargamos PeerJS desde CDN -->
+  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <!-- Pantalla de inicio -->
+    <div id="screen-home">
+      <h1>Mini Kahoot Casero</h1>
+      <p>Elige tu rol:</p>
+      <button class="btn" id="btn-host">Ser Anfitrión</button>
+      <button class="btn" id="btn-join">Unirse a la Partida</button>
+    </div>
+
+    <!-- Pantalla de configuración para host -->
+    <div id="screen-host" class="hidden">
+      <h2>Creando Partida</h2>
+      <p>Comparte este código con los jugadores para que se unan:</p>
+      <h3 id="host-code"></h3>
+      <p>Esperando jugadores...</p>
+      <div id="host-players"></div>
+      <button class="btn" id="btn-start" disabled>Iniciar Juego</button>
+    </div>
+
+    <!-- Pantalla para unirse -->
+    <div id="screen-join" class="hidden">
+      <h2>Unirse a la Partida</h2>
+      <p>Introduce tu nombre:</p>
+      <input type="text" id="join-name" placeholder="Tu nombre">
+      <p>Introduce el código de la partida:</p>
+      <input type="text" id="join-code" placeholder="Código del host">
+      <button class="btn" id="btn-join-game">Unirse</button>
+      <p id="join-status"></p>
+    </div>
+
+    <!-- Pantalla de juego -->
+    <div id="screen-game" class="hidden">
+      <h2 id="question-title">Pregunta</h2>
+      <div id="question-text"></div>
+      <div id="answers"></div>
+      <p id="question-info"></p>
+    </div>
+
+    <!-- Pantalla de resultados -->
+    <div id="screen-results" class="hidden">
+      <h2>Resultados Finales</h2>
+      <ul id="results-list"></ul>
+    </div>
+  </div>
+
+  <!-- Script JS -->
+  <script>
+    // Variables globales
+    let peer = null;
+    let conn = null;
+    let connections = {};  // para host: almacena conexiones de jugadores, key: peer id, value: {name, score, conn}
+    let isHost = false;
+    let currentQuestion = 0;
+    let answersReceived = {};
+    // Preguntas ejemplo: puedes modificar este array
+    const questions = [
+      {
+        question: "¿Qué significa FP?",
+        options: ["Formación Profesional", "Formación Pública", "Formación Progresiva", "Formación Permanente"],
+        correct: 0
+      },
+      {
+        question: "¿Qué significa FPE?",
+        options: ["Formación Profesional para el Empleo", "Formación Pública Especial", "Formación Profesional Escolar", "Formación para Profesores Expertos"],
+        correct: 0
+      },
+      {
+        question: "¿Quién puede acceder a la FPE?",
+        options: ["Personas desempleadas o trabajadoras que quieren mejorar sus competencias", "Exclusivamente trabajadores de la administración", "Estudiantes de bachillerato", "Solo titulados universitarios"],
+        correct: 0
+      }
+      // Puedes añadir más preguntas...
+    ];
+
+    // Elementos de la UI
+    const screenHome = document.getElementById('screen-home');
+    const screenHost = document.getElementById('screen-host');
+    const screenJoin = document.getElementById('screen-join');
+    const screenGame = document.getElementById('screen-game');
+    const screenResults = document.getElementById('screen-results');
+    const hostCodeElem = document.getElementById('host-code');
+    const hostPlayersElem = document.getElementById('host-players');
+    const btnStart = document.getElementById('btn-start');
+    const joinStatus = document.getElementById('join-status');
+    const questionTitle = document.getElementById('question-title');
+    const questionText = document.getElementById('question-text');
+    const answersDiv = document.getElementById('answers');
+    const resultsList = document.getElementById('results-list');
+
+    // Roles
+    document.getElementById('btn-host').addEventListener('click', () => {
+      isHost = true;
+      screenHome.classList.add('hidden');
+      screenHost.classList.remove('hidden');
+      startHost();
+    });
+    document.getElementById('btn-join').addEventListener('click', () => {
+      isHost = false;
+      screenHome.classList.add('hidden');
+      screenJoin.classList.remove('hidden');
+    });
+
+    // Función para iniciar como host
+    function startHost() {
+      peer = new Peer(); // se asigna id automáticamente
+      peer.on('open', id => {
+        hostCodeElem.textContent = id;
+      });
+      // Cuando otro jugador se conecta
+      peer.on('connection', connection => {
+        connection.on('data', data => {
+          if (data.type === 'join') {
+            // Guardamos el jugador
+            connections[connection.peer] = { name: data.name, score: 0, conn: connection };
+            updateHostPlayers();
+            // Confirmamos la conexión al jugador
+            connection.send({ type: 'join-ack', message: 'Te has unido correctamente' });
+          } else if (data.type === 'answer') {
+            answersReceived[connection.peer] = data.answer;
+            checkAllAnswers();
+          }
+        });
+      });
+    }
+
+    // Función para actualizar la lista de jugadores en host
+    function updateHostPlayers() {
+      hostPlayersElem.innerHTML = "<h3>Jugadores:</h3><ul>" +
+        Object.values(connections).map(p => `<li>${p.name} - <span class="score">${p.score}</span> pts</li>`).join('') +
+        "</ul>";
+      // Habilitamos el botón de iniciar juego si hay al menos 1 jugador
+      btnStart.disabled = Object.keys(connections).length === 0;
+    }
+
+    // Al hacer clic en iniciar juego, el host comienza a enviar preguntas
+    btnStart.addEventListener('click', () => {
+      // Pasar a pantalla de juego en el host
+      screenHost.classList.add('hidden');
+      screenGame.classList.remove('hidden');
+      sendQuestion();
+    });
+
+    // Función para enviar la pregunta actual a todos
+    function sendQuestion() {
+      if (currentQuestion >= questions.length) {
+        // Fin del juego
+        endGame();
+        return;
+      }
+      answersReceived = {};
+      const q = questions[currentQuestion];
+      // Mostrar en host
+      questionTitle.textContent = `Pregunta ${currentQuestion+1}`;
+      questionText.textContent = q.question;
+      answersDiv.innerHTML = q.options.map((opt, i) =>
+        `<button class="btn answer-btn" onclick="hostSelectAnswer(${i})">${opt}</button>`
+      ).join('');
+      // Enviar la pregunta a todos los jugadores
+      Object.values(connections).forEach(p => {
+        p.conn.send({ type: 'question', question: q, index: currentQuestion });
+      });
+    }
+
+    // Función para que el host también seleccione respuesta (puede usarse para testear)
+    function hostSelectAnswer(selected) {
+      // El host no participa en respuestas; el botón puede servir para avanzar
+      checkAllAnswers(true);
+    }
+
+    // Función para comprobar respuestas: si se han recibido de todos (o si host avanza manualmente)
+    function checkAllAnswers(force = false) {
+      if (force || Object.keys(answersReceived).length === Object.keys(connections).length) {
+        // Calcular resultados de esta pregunta
+        const q = questions[currentQuestion];
+        Object.keys(answersReceived).forEach(pid => {
+          if (answersReceived[pid] === q.correct) {
+            connections[pid].score += 1;
+            // Notificar al jugador que acertó (opcional)
+            connections[pid].conn.send({ type: 'feedback', correct: true });
+          } else {
+            connections[pid].conn.send({ type: 'feedback', correct: false, correctAnswer: q.options[q.correct] });
+          }
+        });
+        // Actualizar la lista de jugadores
+        updateHostPlayers();
+        // Avanzar a la siguiente pregunta tras 3 segundos
+        setTimeout(() => {
+          currentQuestion++;
+          sendQuestion();
+        }, 3000);
+      }
+    }
+
+    // Función para finalizar el juego y mostrar resultados en host
+    function endGame() {
+      screenGame.classList.add('hidden');
+      screenResults.classList.remove('hidden');
+      // Ordenar jugadores por puntuación
+      const players = Object.values(connections).sort((a, b) => b.score - a.score);
+      resultsList.innerHTML = players.map((p, i) => `<li>${i+1}. ${p.name} - ${p.score} pts</li>`).join('');
+      // También se puede enviar a los jugadores para que muestren el podio
+      Object.values(connections).forEach(p => {
+        p.conn.send({ type: 'end', results: players });
+      });
+    }
+
+    // Función para iniciar como jugador y conectarse al host
+    document.getElementById('btn-join-game').addEventListener('click', () => {
+      const name = document.getElementById('join-name').value.trim();
+      const hostId = document.getElementById('join-code').value.trim();
+      if (!name || !hostId) {
+        joinStatus.textContent = "Debes introducir tu nombre y el código de la partida.";
+        return;
+      }
+      peer = new Peer();
+      peer.on('open', id => {
+        // Conectar al host
+        conn = peer.connect(hostId);
+        conn.on('open', () => {
+          conn.send({ type: 'join', name: name });
+          joinStatus.textContent = "Conectado. Espera a que el anfitrión inicie el juego.";
+        });
+        conn.on('data', data => {
+          if (data.type === 'join-ack') {
+            // Ya nos hemos unido
+            // Pasar a pantalla de juego
+            screenJoin.classList.add('hidden');
+            screenGame.classList.remove('hidden');
+          } else if (data.type === 'question') {
+            showQuestion(data.question, data.index);
+          } else if (data.type === 'feedback') {
+            // Mostrar feedback al jugador (por ejemplo, alertas)
+            alert(data.correct ? "¡Correcto!" : "Incorrecto. La respuesta correcta es: " + data.correctAnswer);
+          } else if (data.type === 'end') {
+            showResults(data.results);
+          }
+        });
+      });
+    });
+
+    // Función para mostrar la pregunta en el jugador
+    function showQuestion(q, qIndex) {
+      questionTitle.textContent = `Pregunta ${qIndex+1}`;
+      questionText.textContent = q.question;
+      answersDiv.innerHTML = q.options.map((opt, i) =>
+        `<button class="btn answer-btn" onclick="sendAnswer(${i})">${opt}</button>`
+      ).join('');
+    }
+
+    // Función para que el jugador envíe su respuesta
+    function sendAnswer(selected) {
+      if (conn && conn.open) {
+        conn.send({ type: 'answer', answer: selected });
+        // Evitar que se pulse varias veces
+        answersDiv.innerHTML = "Respuesta enviada. Espera a la siguiente pregunta.";
+      }
+    }
+
+    // Función para mostrar resultados en el jugador al final del juego
+    function showResults(results) {
+      screenGame.classList.add('hidden');
+      screenResults.classList.remove('hidden');
+      resultsList.innerHTML = results.map((p, i) => `<li>${i+1}. ${p.name} - ${p.score} pts</li>`).join('');
+    }
+  </script>
+</body>
+</html>
