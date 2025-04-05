@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Popup de Captura</title>
+    <script>
+        async function startCapture() {
+            try {
+                // Solicitar capturar la pantalla (pestaña activa o pantalla completa)
+                const stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: true,
+                    audio: true
+                });
+
+                // Aquí podrías procesar el stream, guardarlo, o hacer lo que necesites
+                const videoElement = document.createElement('video');
+                videoElement.srcObject = stream;
+                videoElement.play();
+
+                // Opcional: Mostrar el video en el popup
+                document.body.appendChild(videoElement);
+            } catch (err) {
+                console.error('Error al intentar capturar la pantalla:', err);
+            }
+        }
+
+        window.onload = () => {
+            // Iniciar captura cuando se carga el popup
+            startCapture();
+        };
+    </script>
+</head>
+<body>
+    <h2>Captura de Pantalla y Audio</h2>
+    <button onclick="startCapture()">Comenzar Captura</button>
+</body>
+</html>
