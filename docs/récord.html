@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grabación de Pantalla</title>
+</head>
+<body>
+  <h1>Grabar Pantalla con Audio</h1>
+
+  <button id="startBtn">Iniciar Grabación</button>
+  <button id="stopBtn" disabled>Detener Grabación</button>
+  <video id="video" width="320" height="240" controls></video>
+
+  <script>
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const videoElement = document.getElementById('video');
+    let mediaRecorder;
+    let recordedChunks = [];
+
+    // Configuración de la captura
+    const captureOptions = {
+      video: {
+        frameRate: { ideal: 15, max: 15 }, // 15 fps para garantizar estabilidad
+        width: { ideal: 640 },
+        height: { ideal: 480 }
+      },
+      audio: {
+        mandatory: {
+          chromeMediaSource: 'system' // Capturar audio del sistema
+        }
+      }
+    };
+
+    // Iniciar la grabación
+    startBtn.addEventListener('click', async () => {
+      try {
+        // Obtener la captura de la pantalla y audio
+        const stream = await navigator.mediaDevices.getDisplayMedia(captureOptions);
+        
+        // Crear un MediaRecorder con el stream capturado
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp8' });
+
+        // Cuando se grabe un chunk, guardarlo
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            recordedChunks.push(event.data);
+          }
+        };
+
+        // Cuando termine la grabación, mostrar el video grabado
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: 'video/webm' });
+          const videoURL = URL.createObjectURL(blob);
+          videoElement.src = videoURL;
+        };
+
+        // Comenzar a grabar
+        mediaRecorder.start();
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+
+      } catch (err) {
+        console.error('Error al iniciar la grabación:', err);
+      }
+    });
+
+    // Detener la grabación
+    stopBtn.addEventListener('click', () => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+    });
+  </script>
+</body>
+</html>
