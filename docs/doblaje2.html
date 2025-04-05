@@ -3,339 +3,112 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Doblaje Colaborativo</title>
-  <script src="https://www.youtube.com/iframe_api"></script>
-  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
+  <title>DubSync - Doblaje Colaborativo</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; }
-    body { font-family: Arial, sans-serif; background-color: #f0f0f0; display: flex; flex-direction: column; }
-    header { background: #222; color: #fff; padding: 10px; text-align: center; }
-    #main-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
-    #video-container { position: relative; width: 100%; max-width: 800px; margin: auto; flex: 1; }
-    #video-container iframe { width: 100%; height: 100%; }
-    #video-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 999; background: transparent; }
-    #countdown-overlay {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0, 0, 0, 0.8); color: white; display: none;
-      justify-content: center; align-items: center; font-size: 5rem; font-weight: bold; z-index: 1000;
-    }
-    #control-bar { background: rgba(34,34,34,0.9); color: #fff; padding: 5px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
-    #control-bar button, #control-bar input[type=range] { padding: 8px 12px; font-size: 16px; }
-    .switch { position: relative; display: inline-block; width: 60px; height: 34px; }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
-    .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
-    input:checked + .slider { background-color: #2196F3; }
-    input:checked + .slider:before { transform: translateX(26px); }
-    #seek-container, #sync-container { margin: 10px; }
-    #seek-container input[type=range], #sync-container input[type=range] { width: 300px; }
-    #seek-container span, #sync-container span { font-weight: bold; margin-left: 5px; }
-    #p2p-container, #annotations, #recording-list { max-width: 800px; margin: 10px auto; }
-    #p2p-container video { width: 45%; height: auto; background: #000; margin: 5px; }
-    #annotations textarea { width: 100%; height: 100px; }
-    .recording-item { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
-    .recording-item button { background: red; color: #fff; border: none; padding: 5px; cursor: pointer; }
-    footer { background: #333; color: #fff; text-align: center; padding: 5px; position: fixed; bottom: 0; left: 0; width: 100%; z-index: 1200; }
-    #hamburger { display: none; position: fixed; top: 10px; right: 10px; z-index: 1300; cursor: pointer; }
-    #hamburger div { width: 30px; height: 4px; background: #fff; margin: 5px 0; }
-    @media (max-width: 600px) {
-      #control-bar { display: none; }
-      #hamburger { display: block; }
-    }
+    body { background: #111; color: #fff; font-family: sans-serif; text-align: center; padding: 2em; }
+    iframe { width: 100%; height: 80vh; border: none; border-radius: 10px; }
+    button { padding: 0.5em; margin: 1em; }
+    video, audio { max-width: 80%; margin-top: 1em; }
+    #controls { margin-top: 1em; }
   </style>
 </head>
 <body>
-  <header><h1>Doblaje Colaborativo</h1></header>
-  <div id="main-content">
-    <div id="video-container">
-      <div id="player"></div>
-      <div id="video-overlay"></div>
-      <div id="countdown-overlay"></div>
-    </div>
-    <div style="margin: 10px;">
-      <input type="text" id="youtube-url" placeholder="Pega la URL de YouTube aquí">
-      <button id="load-video">Cargar Video</button>
-    </div>
-    <div id="control-bar">
-      <button id="btn-play" disabled>Play</button>
-      <button id="btn-stop" disabled>Stop</button>
-      <button id="btn-record" disabled>Record</button>
-      <button id="btn-export" disabled>Export</button>
-      <div class="switch">
-        <input type="checkbox" id="btn-mute">
-        <span class="slider"></span>
-      </div>
-      <span id="mute-label">Volume 100%</span>
-      <div id="seek-container">
-        <label for="seek-slider">Seek:</label>
-        <input type="range" id="seek-slider" min="0" max="100" step="0.1" value="0">
-        <span id="current-time">0:00</span>
-      </div>
-      <div id="sync-container">
-        <label for="sync-adjust">Sync Ajuste (ms):</label>
-        <input type="range" id="sync-adjust" min="-2000" max="2000" step="1" value="0">
-        <span id="sync-value">0 ms</span>
-      </div>
-    </div>
-    <div id="hamburger" onclick="toggleControls()">
-      <div></div><div></div><div></div>
-    </div>
-    <div id="p2p-container">
-      <h3>Colaboración en tiempo real</h3>
-      <p>Tu ID de sesión: <span id="my-id"></span></p>
-      <input type="text" id="remote-id" placeholder="Código de sesión para unirse">
-      <button id="btn-join">Join</button>
-      <button id="btn-host">Host</button>
-      <div>
-        <video id="local-video" autoplay muted playsinline></video>
-        <video id="remote-video" autoplay playsinline></video>
-      </div>
-      <p>Comparte este enlace: <span id="session-link"></span></p>
-    </div>
-    <div id="annotations">
-      <h3>Anotaciones personales</h3>
-      <textarea id="notes" placeholder="Escribe tus notas aquí..."></textarea>
-    </div>
-    <div id="recording-section">
-      <h2>Grabaciones</h2>
-      <ul id="recording-list"></ul>
-    </div>
+  <h1>DubSync - Doblaje Colaborativo</h1>
+  <p>Graba el video de YouTube y tu voz, y exporta el video final.</p>
+
+  <input type="text" id="yt-url" placeholder="Pega aquí el enlace de YouTube" size="50">
+  <button onclick="loadVideo()">Cargar Video</button>
+
+  <div id="video-container"></div>
+
+  <div id="controls">
+    <button onclick="startRecording()">Grabar Video y Audio</button>
+    <button onclick="stopRecording()">Detener Grabación</button>
+    <button onclick="downloadFinalVideo()">Descargar Video Final</button>
   </div>
-  <footer>Versión 1.0.36 - 2025-03-19</footer>
+
+  <audio id="recorded-audio" controls></audio>
+  <video id="final-video" controls></video>
+
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
   <script>
-    let player;
-    let mediaRecorder, stream, finalStream;
-    let isRecording = false;
-    let isCountdownActive = false;
-    let lastPlayTimestamp = 0;
-    let recordings = []; // { audio, timestamp } (timestamp en ms)
-    let triggers = [];
-    let syncAdjustment = 0;
-    let disableRecording = false;
-    
-    // PeerJS para colaboración P2P
-    let peer = new Peer();
-    peer.on('open', id => {
-      document.getElementById("my-id").textContent = id;
-      const url = new URL(window.location.href);
-      url.searchParams.set("session", id);
-      document.getElementById("session-link").textContent = url.toString();
-    });
-    peer.on('call', call => {
-      navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-        call.answer(stream);
-        document.getElementById("local-video").srcObject = stream;
-        call.on('stream', remoteStream => {
-          document.getElementById("remote-video").srcObject = remoteStream;
-        });
-      });
-    });
-    document.getElementById("btn-join").addEventListener("click", () => {
-      const remoteId = document.getElementById("remote-id").value;
-      navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-        const call = peer.call(remoteId, stream);
-        document.getElementById("local-video").srcObject = stream;
-        call.on('stream', remoteStream => {
-          document.getElementById("remote-video").srcObject = remoteStream;
-        });
-      });
-    });
-    document.getElementById("btn-host").addEventListener("click", () => {
-      alert("Eres host. Tu ID de sesión es: " + document.getElementById("my-id").textContent);
-    });
-    
-    // Slider de sincronización global
-    document.getElementById("sync-adjust").addEventListener("input", function () {
-      syncAdjustment = parseInt(this.value, 10);
-      document.getElementById("sync-value").textContent = `${syncAdjustment} ms`;
-    });
-    
-    // Slider de seek
-    const seekSlider = document.getElementById("seek-slider");
-    seekSlider.addEventListener("input", () => {
-      if (player && player.getDuration) {
-        player.seekTo(seekSlider.value, true);
-      }
-    });
-    function updateSeekSlider() {
-      if (player && player.getCurrentTime && player.getDuration) {
-        let current = player.getCurrentTime();
-        let duration = player.getDuration();
-        seekSlider.max = duration;
-        seekSlider.value = current;
-        document.getElementById("current-time").textContent = formatTime(current);
-      }
-    }
-    setInterval(updateSeekSlider, 500);
-    
-    // Controles de vídeo
-    function onPlayerReady(event) {
-      document.getElementById("btn-play").disabled = false;
-      document.getElementById("btn-stop").disabled = false;
-      document.getElementById("btn-record").disabled = false;
-      document.getElementById("btn-export").disabled = false;
-    }
-    
-    function loadYouTubeVideo(videoId) {
-      if (!videoId) return console.error("Error: ID de video no válido.");
-      document.getElementById("video-container").innerHTML = `<div id="player"></div><div id="video-overlay"></div><div id="countdown-overlay"></div>`;
-      player = new YT.Player("player", {
-        height: "450",
-        width: "100%",
-        videoId: videoId,
-        playerVars: { controls: 0, disablekb: 1 },
-        events: { "onReady": onPlayerReady, "onStateChange": onPlayerStateChange }
-      });
-    }
-    
-    async function prepareRecording() {
-      if (disableRecording) return;
-      try {
-        if (!stream) {
-          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        }
-        mediaRecorder = new MediaRecorder(stream);
-        mediaRecorder.ondataavailable = event => {
-          if (event.data.size > 0) {
-            addAudioToList(event.data, Math.floor(lastPlayTimestamp * 1000));
-          }
-        };
-        console.log("MediaRecorder listo.");
-      } catch (error) {
-        console.error(`Error al acceder al micrófono: ${error.message}`);
-      }
-    }
-    
-    function startRecording() {
-      if (isRecording || disableRecording) return;
-      mediaRecorder.start();
-      isRecording = true;
-    }
-    
-    function stopRecording() {
-      if (isRecording) {
-        mediaRecorder.stop();
-        isRecording = false;
-      }
-      recordings.forEach(recording => { recording.audio.pause(); });
-      if (!isCountdownActive) {
-        triggers.forEach(trigger => clearTimeout(trigger.timeout));
-        triggers = [];
-      }
-    }
-    
-    function showCountdown(callbackBefore, callbackAfter) {
-      if (isCountdownActive) return;
-      isCountdownActive = true;
-      const countdownOverlay = document.getElementById("countdown-overlay");
-      countdownOverlay.style.display = "flex";
-      let countdown = 3;
-      countdownOverlay.textContent = countdown;
-      callbackBefore();
-      const countdownInterval = setInterval(() => {
-        countdown--;
-        countdownOverlay.textContent = countdown;
-        if (countdown === 0) {
-          clearInterval(countdownInterval);
-          countdownOverlay.style.display = "none";
-          isCountdownActive = false;
-          callbackAfter();
-        }
-      }, 1000);
-    }
-    
-    function onPlayerStateChange(event) {
-      if (event.data === YT.PlayerState.PLAYING) {
-        console.log("El video ha comenzado a reproducirse.");
-        lastPlayTimestamp = player.getCurrentTime();
-        if (isCountdownActive) {
-          isCountdownActive = false;
-          executeTriggers();
-          return;
-        }
-        player.pauseVideo();
-        showCountdown(async () => {
-          await prepareRecording();
-          scheduleAudioTriggers();
-        }, () => {
-          startRecording();
-          executeTriggers();
-          player.seekTo(lastPlayTimestamp, true);
-          player.playVideo();
-        });
-      } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
-        console.log("El video se ha pausado o terminado.");
-        stopRecording();
-      }
-    }
-    
-    function addAudioToList(audioBlob, timestamp) {
-      const url = URL.createObjectURL(audioBlob);
-      const list = document.getElementById("recording-list");
-      const listItem = document.createElement("li");
-      listItem.classList.add("recording-item");
-      const audio = document.createElement("audio");
-      audio.controls = true;
-      audio.src = url;
-      const timestampLabel = document.createElement("span");
-      timestampLabel.textContent = `(${formatTime(timestamp / 1000)})`;
-      const downloadButton = document.createElement("a");
-      downloadButton.href = url;
-      downloadButton.download = `grabacion-${recordings.length + 1}.wav`;
-      downloadButton.textContent = "Descargar";
-      listItem.appendChild(audio);
-      listItem.appendChild(timestampLabel);
-      listItem.appendChild(downloadButton);
-      list.appendChild(listItem);
-      recordings.push({ audio: audio, timestamp: timestamp });
-    }
-    
-    function formatTime(seconds) {
-      const minutes = Math.floor(seconds / 60);
-      const sec = Math.floor(seconds % 60);
-      return `${minutes}:${sec.toString().padStart(2, '0')}`;
-    }
-    
-    function scheduleAudioTriggers() {
-      const currentTime = player.getCurrentTime();
-      triggers = [];
-      recordings.forEach((recording) => {
-        const audioStart = recording.timestamp / 1000; // en segundos
-        const delay = (audioStart - currentTime) * 1000; // en ms
-        console.log(`Trigger para audio programado en ${delay} ms (ajuste: ${syncAdjustment} ms)`);
-        triggers.push({ audio: recording.audio, timeToPlay: delay });
-      });
-    }
-    
-    function executeTriggers() {
-      triggers.forEach((trigger) => {
-        const adjustedDelay = trigger.timeToPlay + syncAdjustment;
-        console.log(`Ejecutando trigger en ${adjustedDelay} ms`);
-        trigger.timeout = setTimeout(() => {
-          trigger.audio.currentTime = 0;
-          trigger.audio.play().catch(error => console.warn("Reproducción bloqueada:", error));
-        }, Math.max(0, adjustedDelay));
-      });
-    }
-    
-    document.getElementById("load-video").addEventListener("click", function () {
-      const url = document.getElementById("youtube-url").value;
-      const videoId = getYouTubeVideoId(url);
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const ffmpeg = createFFmpeg({ log: true });
+
+    let mediaRecorder, videoStream, audioStream, recordedChunks = [];
+    let videoFile;
+
+    // Cargar el video de YouTube en un iframe
+    function loadVideo() {
+      const url = document.getElementById("yt-url").value;
+      const videoId = new URL(url).searchParams.get("v");
       if (videoId) {
-        loadYouTubeVideo(videoId);
+        document.getElementById("video-container").innerHTML = `
+          <iframe id="ytplayer" src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1" frameborder="0"></iframe>`;
       } else {
-        console.error("URL de YouTube no válida.");
+        alert("URL no válida.");
       }
-    });
-    
-    document.getElementById("disable-recording").addEventListener("change", function () {
-      disableRecording = this.checked;
-    });
-    
-    function toggleControls() {
-      const controlBar = document.getElementById("control-bar");
-      controlBar.classList.toggle("collapsed");
+    }
+
+    // Iniciar grabación de video (pantalla) y audio (micrófono)
+    async function startRecording() {
+      // Grabar el video de la pestaña (pantalla) y audio del micrófono
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Unir video y audio en un solo stream
+      const combinedStream = new MediaStream([...screenStream.getTracks(), ...audioStream.getTracks()]);
+
+      // Iniciar grabación
+      mediaRecorder = new MediaRecorder(combinedStream);
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunks.push(event.data);
+      };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const videoURL = URL.createObjectURL(blob);
+        document.getElementById("recorded-audio").src = videoURL;  // Para previsualizar el video grabado
+        document.getElementById("final-video").src = videoURL;  // Para previsualizar el video final
+      };
+      mediaRecorder.start();
+    }
+
+    // Detener grabación
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+      }
+    }
+
+    // Descargar video final con audio combinado
+    async function downloadFinalVideo() {
+      if (recordedChunks.length === 0) {
+        alert("No se ha grabado ningún video.");
+        return;
+      }
+
+      if (!ffmpeg.isLoaded()) await ffmpeg.load();
+
+      // Crear el archivo del video grabado y el audio grabado
+      const videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
+      const videoFile = new File([videoBlob], "video.webm");
+
+      // Escribir el archivo de video y audio en el sistema de archivos de ffmpeg
+      ffmpeg.FS('writeFile', 'input.webm', await fetchFile(videoFile));
+
+      // Ejecutar ffmpeg para convertir y exportar el archivo final
+      await ffmpeg.run('-i', 'input.webm', '-c:v', 'libvpx-vp9', '-c:a', 'libopus', 'output.webm');
+
+      // Leer el archivo final generado por ffmpeg
+      const data = ffmpeg.FS('readFile', 'output.webm');
+      const url = URL.createObjectURL(new Blob([data.buffer], { type: 'video/webm' }));
+
+      // Crear un enlace para descargar el archivo
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'doblaje_final.webm';
+      a.textContent = 'Descargar Video Final';
+      document.body.appendChild(a);
     }
   </script>
 </body>
