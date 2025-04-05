@@ -266,28 +266,57 @@
         });
     }
 
-    // Función para abrir el popup y capturar la pestaña
-    document.getElementById("capture-button").addEventListener("click", async () => {
-        const popup = window.open('', '', 'width=600,height=400'); 
-        popup.document.write('<h1>Selecciona la pestaña para grabar</h1>');
-        popup.document.write('<p>Haz clic en la pestaña que deseas capturar y luego confirma la acción.</p>');
+    // Captura de la pestaña en el popup
+    document.getElementById("capture-button").addEventListener("click", async function() {
+        const popup = window.open('', '', 'width=600,height=400');
+        popup.document.write('<h1>Por favor, selecciona la pestaña que deseas grabar</h1>');
+        popup.document.write('<button id="start-recording">Iniciar grabación</button>');
+        popup.document.write('<a id="download-link" style="display:none;" href="#" download="grabacion.webm">Descargar grabación</a>');
+        
+        const startRecordingButton = popup.document.getElementById('start-recording');
+        const downloadLink = popup.document.getElementById('download-link');
 
-        try {
-            const stream = await popup.navigator.mediaDevices.getDisplayMedia({ video: { mediaSource: 'window' } });
+        // Solicitar la captura de pantalla
+        startRecordingButton.addEventListener('click', async () => {
+            try {
+                const mediaStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                
+                // Grabar el stream
+                const recorder = new MediaRecorder(mediaStream);
+                const chunks = [];
+                recorder.ondataavailable = event => {
+                    if (event.data.size > 0) {
+                        chunks.push(event.data);
+                    }
+                };
+                
+                recorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    downloadLink.href = url;
+                    downloadLink.style.display = 'inline-block';
+                };
 
-            // Aquí es donde podrías compartir el stream con tu página principal
-            window.stream = stream;  // Asignamos el stream a la ventana principal
-
-        } catch (err) {
-            console.error('Error al capturar la pestaña:', err);
-        }
+                recorder.start();
+                
+                // Detener la grabación después de 10 segundos (ajustar según sea necesario)
+                setTimeout(() => {
+                    recorder.stop();
+                }, 10000);
+                
+            } catch (err) {
+                console.error('Error al capturar la pestaña:', err);
+            }
+        });
     });
 
+    // Ajuste de sincronización
     document.getElementById("sync-adjust").addEventListener("input", function () {
         syncAdjustment = parseInt(this.value, 10);
         document.getElementById("sync-value").textContent = `${syncAdjustment} ms`;
     });
 
+    // Cargar video
     document.getElementById("load-video").addEventListener("click", function () {
          const url = document.getElementById("youtube-url").value;
          const videoId = getYouTubeVideoId(url);
@@ -298,6 +327,7 @@
          }
      });
  
+     // Deshabilitar grabación
      document.getElementById("disable-recording").addEventListener("change", function () {
          disableRecording = this.checked;
      });
