@@ -3,58 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Web de Doblaje Colaborativo</title>
+  <title>Doblaje Colaborativo</title>
   <!-- YouTube Iframe API -->
   <script src="https://www.youtube.com/iframe_api"></script>
-  <!-- PeerJS para WebRTC -->
+  <!-- PeerJS para colaboración P2P -->
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; background-color: #f0f0f0; margin-bottom: 120px; }
-    h1, h2, h3 { margin: 10px 0; }
+    /* Estilos generales */
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; margin: 0; background-color: #f0f0f0; padding-bottom: 80px; }
+    header { background: #222; color: #fff; padding: 10px; text-align: center; }
+    /* Contenedor de video: siempre arriba y responsive */
     #video-container { width: 100%; max-width: 800px; margin: auto; position: relative; }
-    iframe { width: 100%; height: 450px; }
-    /* Overlay para evitar interacción directa con el iframe */
-    #video-overlay {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      z-index: 999; background: transparent;
-    }
-    /* Controles principales */
-    #controls-container { margin: 10px auto; max-width: 800px; display: flex; justify-content: center; gap: 10px; }
-    #controls-container button { padding: 10px 20px; font-size: 16px; }
-    /* Switch de mute estilo moderno */
-    .switch {
-      position: relative; display: inline-block; width: 60px; height: 34px;
-    }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .slider {
-      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-      background-color: #ccc; transition: .4s; border-radius: 34px;
-    }
-    .slider:before {
-      position: absolute; content: \"\"; height: 26px; width: 26px;
-      left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%;
-    }
-    input:checked + .slider { background-color: #2196F3; }
-    input:checked + .slider:before { transform: translateX(26px); }
-    /* Slider para sincronización y seek */
-    #sync-container, #seek-container { margin: 10px auto; max-width: 800px; }\n    #sync-container input[type=range], #seek-container input[type=range] { width: 300px; }\n    #sync-container span, #seek-container span { font-weight: bold; }\n    /* Área de anotaciones */\n    #annotations { margin: 20px auto; max-width: 800px; }\n    #annotations textarea { width: 100%; height: 100px; }\n    /* Lista de grabaciones */\n    #recording-list { margin-top: 20px; max-width: 800px; margin-left: auto; margin-right: auto; text-align: left; }\n    .recording-item { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }\n    .recording-item button { background: red; color: white; border: none; padding: 5px; cursor: pointer; }\n    footer { position: fixed; bottom: 0; width: 100%; background: #333; color: #fff; text-align: center; padding: 5px; }\n    /* Contenedor P2P */\n    #p2p-container { margin: 20px auto; max-width: 800px; }\n    #local-video, #remote-video { width: 300px; height: 200px; background: #000; margin: 5px; }\n  </style>
+    #video-container iframe { width: 100%; height: 450px; }
+    /* Overlay para bloquear la interacción directa en el vídeo */
+    #video-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 999; background: transparent; }
+    /* Countdown overlay */
+    #countdown-overlay {\n  position: absolute;\n  top: 0; left: 0; width: 100%; height: 100%;\n  background: rgba(0, 0, 0, 0.8);\n  color: white;\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  font-size: 5rem;\n  font-weight: bold;\n  display: none;\n  z-index: 1000;\n}\n    /* Control Bar: autoocultable con menú hamburguesa para móviles */\n    #control-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(34, 34, 34, 0.9); color: #fff; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; padding: 5px; z-index: 1100; }\n    #control-bar button, #control-bar input[type=range] { margin: 5px; padding: 8px 12px; font-size: 16px; }\n    /* Switch de mute */\n    .switch { position: relative; display: inline-block; width: 60px; height: 34px; }\n    .switch input { opacity: 0; width: 0; height: 0; }\n    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }\n    .slider:before { position: absolute; content: \"\"; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }\n    input:checked + .slider { background-color: #2196F3; }\n    input:checked + .slider:before { transform: translateX(26px); }\n    /* Slider de sincronización */\n    #sync-container { margin: 10px auto; }\n    #sync-container input[type=range] { width: 300px; }\n    #sync-container span { font-weight: bold; margin-left: 5px; }\n    /* Slider de seek */\n    #seek-container { margin: 10px auto; }\n    #seek-container input[type=range] { width: 300px; }\n    #seek-container span { font-weight: bold; margin-left: 5px; }\n    /* Sección de anotaciones */\n    #annotations { margin: 20px auto; max-width: 800px; }\n    #annotations textarea { width: 100%; height: 100px; }\n    /* Sección P2P */\n    #p2p-container { margin: 20px auto; max-width: 800px; background: #fff; padding: 10px; border-radius: 5px; }\n    #p2p-container video { width: 45%; margin: 5px; background: #000; }\n    /* Lista de grabaciones */\n    #recording-list { margin: 20px auto; max-width: 800px; text-align: left; }\n    .recording-item { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }\n    .recording-item button { background: red; color: #fff; border: none; padding: 5px; cursor: pointer; }\n    /* Footer */\n    footer { position: fixed; bottom: 0; width: 100%; background: #333; color: #fff; text-align: center; padding: 5px; z-index: 1200; }\n    /* Hamburger menu para móviles */\n    #hamburger { display: none; position: fixed; top: 10px; right: 10px; z-index: 1300; cursor: pointer; }\n    #hamburger div { width: 30px; height: 4px; background: #fff; margin: 5px 0; }\n    @media (max-width: 600px) {\n      #control-bar { display: none; }\n      #hamburger { display: block; }\n    }\n  </style>
 </head>
 <body>
 
-<!-- Contenedor del vídeo de YouTube -->
+<header><h1>Doblaje Colaborativo</h1></header>
+
 <div id="video-container">
   <div id="player"></div>
   <div id="video-overlay"></div>
+  <div id="countdown-overlay"></div>
 </div>
 
-<!-- Controles para cargar el vídeo -->
 <div style="margin: 10px;">
   <input type="text" id="youtube-url" placeholder="Pega la URL de YouTube aquí">
   <button id="load-video">Cargar Video</button>
 </div>
 
-<!-- Controles principales -->
-<div id="controls-container">
+<!-- Control Bar -->
+<div id="control-bar">
   <button id="btn-play" disabled>Play</button>
   <button id="btn-stop" disabled>Stop</button>
   <button id="btn-record" disabled>Record</button>
@@ -64,36 +47,39 @@
     <span class="slider"></span>
   </div>
   <span id="mute-label">Volume 100%</span>
+  <div id="seek-container">
+    <label for="seek-slider">Seek:</label>
+    <input type="range" id="seek-slider" min="0" max="100" step="0.1" value="0">
+    <span id="current-time">0:00</span>
+  </div>
+  <div id="sync-container">
+    <label for="sync-adjust">Sync Ajuste (ms):</label>
+    <input type="range" id="sync-adjust" min="-2000" max="2000" step="1" value="0">
+    <span id="sync-value">0 ms</span>
+  </div>
 </div>
 
-<!-- Slider de seek para controlar el tiempo del vídeo -->
-<div id="seek-container">
-  <label for="seek-slider">Posición del vídeo:</label>
-  <input type="range" id="seek-slider" min="0" max="100" step="0.1" value="0">
-  <span id="current-time">0:00</span>
+<!-- Hamburger para mostrar/ocultar controles en móvil -->
+<div id="hamburger" onclick="toggleControls()">
+  <div></div>
+  <div></div>
+  <div></div>
 </div>
 
-<!-- Slider para ajustar sincronización de audios -->
-<div id="sync-container">
-  <label for="sync-adjust">Ajuste de sincronización (ms):</label>
-  <input type="range" id="sync-adjust" min="-2000" max="2000" step="10" value="0">
-  <span id="sync-value">0 ms</span>
-</div>
-
-<!-- Área de anotaciones privadas -->
-<div id="annotations">
-  <h3>Anotaciones personales</h3>
-  <textarea id="notes" placeholder="Escribe tus notas aquí..."></textarea>
-</div>
-
-<!-- Contenedor P2P para colaboración en tiempo real -->
+<!-- Sección P2P -->
 <div id="p2p-container">
   <h3>Colaboración en tiempo real</h3>
   <p>Tu ID de sesión: <span id="my-id"></span></p>
   <input type="text" id="remote-id" placeholder="Código de sesión para unirse">
   <button id="btn-join">Join</button>
   <button id="btn-host">Host</button>
-  <div>\n  <video id="local-video" autoplay muted playsinline></video>\n  <video id="remote-video" autoplay playsinline></video>\n  </div>\n  <p>Comparte el siguiente enlace para unirte a la sesión: <span id=\"session-link\"></span></p>\n</div>
+  <div>\n    <video id="local-video" autoplay muted playsinline></video>\n    <video id="remote-video" autoplay playsinline></video>\n  </div>\n  <p>Comparte el siguiente enlace: <span id="session-link"></span></p>\n</div>
+
+<!-- Anotaciones -->
+<div id="annotations">
+  <h3>Anotaciones personales</h3>
+  <textarea id="notes" placeholder="Escribe tus notas aquí..."></textarea>
+</div>
 
 <!-- Lista de grabaciones -->
 <h2>Grabaciones</h2>
@@ -109,277 +95,226 @@
   let isCountdownActive = false;
   let lastPlayTimestamp = 0;
   let recordings = []; // Cada grabación: { audio, timestamp } (timestamp en ms)
-  let triggers = [];   // Triggers programados para sincronizar audios
+  let triggers = [];   // Triggers para iniciar audios programados
   let syncAdjustment = 0;
   
-  /* YouTube Iframe API */
-  function onYouTubeIframeAPIReady() {
-    // Se carga cuando se llama a loadVideo
-  }
-  
-  function loadVideo(videoId) {
-    if (!videoId) return console.error("Error: ID de video no válido.");
-    document.getElementById("video-container").innerHTML = `<div id="player"></div><div id="video-overlay"></div>`;
-    player = new YT.Player("player", {
-      height: "450",
-      width: "100%",
-      videoId: videoId,
-      playerVars: { controls: 0, disablekb: 1 },
-      events: { "onReady": onPlayerReady, "onStateChange": onPlayerStateChange }
-    });
-  }
-  
-  function onPlayerReady(event) {
-    document.getElementById("btn-play").disabled = false;
-    document.getElementById("btn-stop").disabled = false;
-    document.getElementById("btn-record").disabled = false;
-    document.getElementById("btn-export").disabled = false;
-    updateSeekSlider();
-  }
-  
-  /* Controles de reproducción */
-  document.getElementById("btn-play").addEventListener("click", () => {
-    if (player) {
-      player.playVideo();
-      updateControlStates(true);
-    }
+  /* PeerJS para colaboración P2P */
+  let peer = new Peer();
+  peer.on('open', id => {
+      document.getElementById("my-id").textContent = id;
+      const url = new URL(window.location.href);
+      url.searchParams.set("session", id);
+      document.getElementById("session-link").textContent = url.toString();
+  });
+  peer.on('call', call => {
+      navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+          call.answer(stream);
+          document.getElementById("local-video").srcObject = stream;
+          call.on('stream', remoteStream => {
+              document.getElementById("remote-video").srcObject = remoteStream;
+          });
+      });
+  });
+  document.getElementById("btn-join").addEventListener("click", () => {
+      const remoteId = document.getElementById("remote-id").value;
+      navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+          const call = peer.call(remoteId, stream);
+          document.getElementById("local-video").srcObject = stream;
+          call.on('stream', remoteStream => {
+              document.getElementById("remote-video").srcObject = remoteStream;
+          });
+      });
+  });
+  document.getElementById("btn-host").addEventListener("click", () => {
+      alert("Eres host. Tu ID de sesión es: " + document.getElementById("my-id").textContent);
   });
   
-  document.getElementById("btn-stop").addEventListener("click", () => {
-    if (player) {
-      player.pauseVideo();
-      stopRecording();
-      updateControlStates(false);
-    }
-  });
-  
-  function updateControlStates(isActive) {
-    document.getElementById("btn-play").disabled = isActive;
-    document.getElementById("btn-record").disabled = isActive;
-    document.getElementById("btn-export").disabled = isActive;
-    document.getElementById("btn-stop").disabled = !isActive;
-  }
-  
-  /* Mute switch */
-  const btnMute = document.getElementById("btn-mute");
-  const muteLabel = document.getElementById("mute-label");
-  btnMute.addEventListener("change", () => {
-    if (player) {
-      if (btnMute.checked) { player.mute(); muteLabel.textContent = "Volume 0%"; }
-      else { player.unMute(); muteLabel.textContent = "Volume 100%"; }
-    }
+  /* Slider de sincronización global */
+  document.getElementById("sync-adjust").addEventListener("input", function () {
+      syncAdjustment = parseInt(this.value, 10);
+      document.getElementById("sync-value").textContent = `${syncAdjustment} ms`;
   });
   
   /* Slider de seek */
   const seekSlider = document.getElementById("seek-slider");
   seekSlider.addEventListener("input", () => {
-    if (player && player.getDuration) {
-      player.seekTo(seekSlider.value, true);
-    }
+      if (player && player.getDuration) {
+          player.seekTo(seekSlider.value, true);
+      }
   });
-  
   function updateSeekSlider() {
-    if (player && player.getCurrentTime && player.getDuration) {
-      let current = player.getCurrentTime();
-      let duration = player.getDuration();
-      seekSlider.max = duration;
-      seekSlider.value = current;
-      document.getElementById("current-time").textContent = formatTime(current);
-    }
+      if (player && player.getCurrentTime && player.getDuration) {
+          let current = player.getCurrentTime();
+          let duration = player.getDuration();
+          seekSlider.max = duration;
+          seekSlider.value = current;
+          document.getElementById("current-time").textContent = formatTime(current);
+      }
   }
   setInterval(updateSeekSlider, 500);
   
-  /* Slider de sincronización global */
-  document.getElementById("sync-adjust").addEventListener("input", function () {
-    syncAdjustment = parseInt(this.value, 10);
-    document.getElementById("sync-value").textContent = `${syncAdjustment} ms`;
-  });
+  /* Controles de vídeo */
+  function onPlayerReady(event) {
+      document.getElementById("btn-play").disabled = false;
+      document.getElementById("btn-stop").disabled = false;
+      document.getElementById("btn-record").disabled = false;
+      document.getElementById("btn-export").disabled = false;
+  }
   
-  /* Grabación de la pestaña: Exportar vídeo final (video + audio superpuestos) */
-  let recordedChunks = [];
-  let recorder;
-  document.getElementById("btn-export").addEventListener("click", async () => {
-    try {
-      // Capturar la pestaña (video y audio, incluyendo pantalla completa)
-      const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-      recorder = new MediaRecorder(displayStream, { mimeType: "video/webm; codecs=vp9" });
-      recordedChunks = [];
-      recorder.ondataavailable = e => { if(e.data.size > 0) recordedChunks.push(e.data); };
-      recorder.start();
-      setTimeout(() => {
-        recorder.stop();
-        recorder.onstop = () => {
-          const blob = new Blob(recordedChunks, { type: "video/webm" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "doblaje.webm";
-          a.click();
-        };
-      }, 5000); // Graba 5 segundos (ejemplo). Puedes ajustar.\n    } catch (e) {\n      console.error(\"Error al iniciar exportación:\", e);\n    }\n  });
+  function loadYouTubeVideo(videoId) {
+      if (!videoId) return console.error("Error: ID de video no válido.");
+      document.getElementById("video-container").innerHTML = `<div id="player"></div><div id="video-overlay"></div>`;
+      player = new YT.Player("player", {
+          height: "450",
+          width: "100%",
+          videoId: videoId,
+          playerVars: { controls: 0, disablekb: 1 },
+          events: { "onReady": onPlayerReady, "onStateChange": onPlayerStateChange }
+      });
+  }
   
-  /* Funciones de grabación de audio sincronizada */
   async function prepareRecording() {
-    if (disableRecording) return;
-    try {
-      if (!stream) {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (disableRecording) return;
+      try {
+          if (!stream) {
+              stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          }
+          mediaRecorder = new MediaRecorder(stream);
+          mediaRecorder.ondataavailable = event => {
+              if (event.data.size > 0) {
+                  addAudioToList(event.data, Math.floor(lastPlayTimestamp * 1000));
+              }
+          };
+          console.log("MediaRecorder listo.");
+      } catch (error) {
+          console.error(`Error al acceder al micrófono: ${error.message}`);
       }
-      mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) {
-          // Guardamos el timestamp en milisegundos
-          addAudioToList(event.data, Math.floor(lastPlayTimestamp * 1000));
-        }
-      };
-      console.log("MediaRecorder listo.");
-    } catch (error) {
-      console.error(`Error al acceder al micrófono: ${error.message}`);
-    }
   }
   
   function startRecording() {
-    if (isRecording || disableRecording) return;
-    mediaRecorder.start();
-    isRecording = true;
+      if (isRecording || disableRecording) return;
+      mediaRecorder.start();
+      isRecording = true;
   }
   
   function stopRecording() {
-    if (isRecording) {
-      mediaRecorder.stop();
-      isRecording = false;
-    }
-    // Pausar todos los audios activos
-    recordings.forEach(recording => { recording.audio.pause(); });
-    // Eliminar todos los triggers programados
-    if (!isCountdownActive) {
-      triggers.forEach(trigger => clearTimeout(trigger.timeout));
-      triggers = [];
-    }
+      if (isRecording) {
+          mediaRecorder.stop();
+          isRecording = false;
+      }
+      recordings.forEach(recording => { recording.audio.pause(); });
+      if (!isCountdownActive) {
+          triggers.forEach(trigger => clearTimeout(trigger.timeout));
+          triggers = [];
+      }
   }
   
   function showCountdown(callbackBefore, callbackAfter) {
-    if (isCountdownActive) return;
-    isCountdownActive = true;
-  
-    const countdownOverlay = document.getElementById("countdown-overlay");
-    countdownOverlay.style.display = "flex";
-  
-    let countdown = 3;
-    countdownOverlay.textContent = countdown;
-    callbackBefore();
-  
-    const countdownInterval = setInterval(() => {
-      countdown--;
+      if (isCountdownActive) return;
+      isCountdownActive = true;
+      const countdownOverlay = document.getElementById("countdown-overlay");
+      countdownOverlay.style.display = "flex";
+      let countdown = 3;
       countdownOverlay.textContent = countdown;
-  
-      if (countdown === 0) {
-        clearInterval(countdownInterval);
-        countdownOverlay.style.display = "none";
-        isCountdownActive = false;
-        callbackAfter();
-      }
-    }, 1000);
+      callbackBefore();
+      const countdownInterval = setInterval(() => {
+          countdown--;
+          countdownOverlay.textContent = countdown;
+          if (countdown === 0) {
+              clearInterval(countdownInterval);
+              countdownOverlay.style.display = "none";
+              isCountdownActive = false;
+              callbackAfter();
+          }
+      }, 1000);
   }
   
   function onPlayerStateChange(event) {
-    if (event.data === YT.PlayerState.PLAYING) {
-      console.log("El video ha comenzado a reproducirse.");
-      lastPlayTimestamp = player.getCurrentTime();
-  
-      if (isCountdownActive) {
-        isCountdownActive = false;
-        executeTriggers();
-        return;
+      if (event.data === YT.PlayerState.PLAYING) {
+          console.log("El video ha comenzado a reproducirse.");
+          lastPlayTimestamp = player.getCurrentTime();
+          if (isCountdownActive) {
+              isCountdownActive = false;
+              executeTriggers();
+              return;
+          }
+          player.pauseVideo();
+          showCountdown(async () => {
+              await prepareRecording();
+              scheduleAudioTriggers();
+          }, () => {
+              startRecording();
+              executeTriggers();
+              player.seekTo(lastPlayTimestamp, true);
+              player.playVideo();
+          });
+      } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
+          console.log("El video se ha pausado o terminado.");
+          stopRecording();
       }
-  
-      player.pauseVideo();
-  
-      showCountdown(async () => {
-        await prepareRecording();
-        // Durante el countdown, calcular triggers basados en el tiempo actual
-        scheduleAudioTriggers();
-      }, () => {
-        startRecording();
-        executeTriggers();
-        player.seekTo(lastPlayTimestamp, true);
-        player.playVideo();
-      });
-  
-    } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
-      console.log("El video se ha pausado o terminado.");
-      stopRecording();
-    }
   }
   
   function addAudioToList(audioBlob, timestamp) {
-    const url = URL.createObjectURL(audioBlob);
-    const list = document.getElementById("recording-list");
-  
-    const listItem = document.createElement("li");
-    listItem.classList.add("recording-item");
-  
-    const audio = document.createElement("audio");
-    audio.controls = true;
-    audio.src = url;
-  
-    const timestampLabel = document.createElement("span");
-    timestampLabel.textContent = `(${formatTime(timestamp / 1000)})`;
-  
-    const downloadButton = document.createElement("a");
-    downloadButton.href = url;
-    downloadButton.download = `grabacion-${recordings.length + 1}.wav`;
-    downloadButton.textContent = "Descargar";
-  
-    listItem.appendChild(audio);
-    listItem.appendChild(timestampLabel);
-    listItem.appendChild(downloadButton);
-    list.appendChild(listItem);
-  
-    recordings.push({ audio: audio, timestamp: timestamp });
+      const url = URL.createObjectURL(audioBlob);
+      const list = document.getElementById("recording-list");
+      const listItem = document.createElement("li");
+      listItem.classList.add("recording-item");
+      const audio = document.createElement("audio");
+      audio.controls = true;
+      audio.src = url;
+      const timestampLabel = document.createElement("span");
+      timestampLabel.textContent = `(${formatTime(timestamp / 1000)})`;
+      const downloadButton = document.createElement("a");
+      downloadButton.href = url;
+      downloadButton.download = `grabacion-${recordings.length + 1}.wav`;
+      downloadButton.textContent = "Descargar";
+      listItem.appendChild(audio);
+      listItem.appendChild(timestampLabel);
+      listItem.appendChild(downloadButton);
+      list.appendChild(listItem);
+      recordings.push({ audio: audio, timestamp: timestamp });
   }
   
   function formatTime(seconds) {
-    const minutes = Math.floor(seconds / 60);
-    const sec = Math.floor(seconds % 60);
-    return `${minutes}:${sec.toString().padStart(2, '0')}`;
+      const minutes = Math.floor(seconds / 60);
+      const sec = Math.floor(seconds % 60);
+      return `${minutes}:${sec.toString().padStart(2, '0')}`;
   }
   
   function scheduleAudioTriggers() {
-    const currentTime = player.getCurrentTime();
-    triggers = [];
-  
-    recordings.forEach((recording) => {
-      const audioStart = recording.timestamp / 1000; // En segundos
-      const delay = (audioStart - currentTime) * 1000; // En ms
-      console.log(`Trigger para audio programado en ${delay} ms (ajuste: ${syncAdjustment} ms)`);
-      triggers.push({ audio: recording.audio, timeToPlay: delay });
-    });
+      const currentTime = player.getCurrentTime();
+      triggers = [];
+      recordings.forEach((recording) => {
+          const audioStart = recording.timestamp / 1000;
+          const delay = (audioStart - currentTime) * 1000;
+          console.log(`Trigger para audio programado en ${delay} ms (ajuste: ${syncAdjustment} ms)`);
+          triggers.push({ audio: recording.audio, timeToPlay: delay });
+      });
   }
   
   function executeTriggers() {
-    triggers.forEach((trigger) => {
-      const adjustedDelay = trigger.timeToPlay + syncAdjustment;
-      console.log(`Ejecutando trigger en ${adjustedDelay} ms`);
-      trigger.timeout = setTimeout(() => {
-        trigger.audio.currentTime = 0;
-        trigger.audio.play().catch(error => console.warn("Reproducción bloqueada:", error));
-      }, Math.max(0, adjustedDelay));
-    });
+      triggers.forEach((trigger) => {
+          const adjustedDelay = trigger.timeToPlay + syncAdjustment;
+          console.log(`Ejecutando trigger en ${adjustedDelay} ms`);
+          trigger.timeout = setTimeout(() => {
+              trigger.audio.currentTime = 0;
+              trigger.audio.play().catch(error => console.warn("Reproducción bloqueada:", error));
+          }, Math.max(0, adjustedDelay));
+      });
   }
   
   document.getElementById("load-video").addEventListener("click", function () {
-    const url = document.getElementById("youtube-url").value;
-    const videoId = getYouTubeVideoId(url);
-    if (videoId) {
-      loadYouTubeVideo(videoId);
-    } else {
-      console.error("URL de YouTube no válida.");
-    }
+      const url = document.getElementById("youtube-url").value;
+      const videoId = getYouTubeVideoId(url);
+      if (videoId) {
+          loadYouTubeVideo(videoId);
+      } else {
+          console.error("URL de YouTube no válida.");
+      }
   });
   
   document.getElementById("disable-recording").addEventListener("change", function () {
-    disableRecording = this.checked;
+      disableRecording = this.checked;
   });
 </script>
 
