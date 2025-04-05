@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Popup de Captura</title>
     <script>
+        let mediaRecorder;
+        let recordedChunks = [];
+
         async function startCapture() {
             try {
                 // Solicitar capturar la pantalla (pestaña activa o pantalla completa)
@@ -13,26 +16,45 @@
                     audio: true
                 });
 
-                // Aquí podrías procesar el stream, guardarlo, o hacer lo que necesites
-                const videoElement = document.createElement('video');
-                videoElement.srcObject = stream;
-                videoElement.play();
+                // Crear un MediaRecorder para grabar el stream
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.ondataavailable = event => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
 
-                // Opcional: Mostrar el video en el popup
-                document.body.appendChild(videoElement);
+                mediaRecorder.onstop = () => {
+                    // Cuando la grabación se detiene, crear un Blob del video grabado
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+
+                    // Crear un enlace para descargar el video grabado
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = url;
+                    downloadLink.download = 'captura_video.webm';
+                    downloadLink.textContent = 'Descargar Video';
+                    document.body.appendChild(downloadLink);  // Agregar el enlace al body
+                };
+
+                // Iniciar la grabación
+                mediaRecorder.start();
+                console.log("Grabación iniciada.");
+
             } catch (err) {
                 console.error('Error al intentar capturar la pantalla:', err);
             }
         }
 
         window.onload = () => {
-            // Iniciar captura cuando se carga el popup
+            // Iniciar captura automáticamente cuando el popup se cargue
             startCapture();
         };
     </script>
 </head>
 <body>
     <h2>Captura de Pantalla y Audio</h2>
-    <button onclick="startCapture()">Comenzar Captura</button>
+    <button onclick="startCapture()">Iniciar Captura</button>
+    <p>Cuando finalices la grabación, verás un enlace para descargar el video grabado.</p>
 </body>
 </html>
