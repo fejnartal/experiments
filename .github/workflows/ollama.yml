@@ -15,8 +15,8 @@ jobs:
       uses: actions/checkout@v1
 
     - name: Start containers
-      run: docker-compose -f ".github/workflows/ollama/docker-compose.yml" run client run llama2  ${{ inputs.prompt }}
+      run: docker compose -f ".github/workflows/ollama/docker-compose.yml" run client run llama2  ${{ inputs.prompt }}
 
     - name: Stop containers
       if: always()
-      run: docker-compose -f ".github/workflows/ollama/docker-compose.yml" down
+      run: docker compose -f ".github/workflows/ollama/docker-compose.yml" down
