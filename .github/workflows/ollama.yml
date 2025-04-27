@@ -1,9 +1,10 @@
 name: Ollama
 
-on: workflow_dispatch
-  inputs:
-    prompt:
-      required: true
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        required: true
 jobs:
   docker:
     timeout-minutes: 10
