@@ -22,15 +22,15 @@ services:
     - |
       set -euxo pipefail
 
-      cat <<'EOF' > ./custom.modelfile
-      FROM deepseek-r1:14b
-      PARAMETER temperature 0.7
-      PARAMETER top_p 0.9
-      PARAMETER stop "<|endoftext|>"
+      cat <<"EOF"> ./custom.modelfile
+      FROM deepseek-r1:7b
+      SYSTEM """
+      ${SYSTEM}
+      """
       EOF
 
       ollama create custom --file ./custom.modelfile
-      ollama run custom "<｜Assistant｜>${SYSTEM}<｜User｜>{PROMPT}<｜Assistant｜>"
+      ollama run custom "${PROMPT}"
 
     depends_on:
       server:
