@@ -23,7 +23,7 @@ services:
       set -euxo pipefail
 
       cat <<'EOF' > ./custom.modelfile
-      FROM deepseek-v2:16b-lite-chat-q8_0
+      FROM deepseek-r1:32b
       TEMPLATE """{{- if .System }}{{ .System }}{{ end }}
       {{- range $i, $_ := .Messages }}
       {{- $last := eq (len (slice $.Messages $i)) 1}}
