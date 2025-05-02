@@ -23,26 +23,24 @@ services:
       set -euxo pipefail
 
       cat <<'EOF' > ./custom.modelfile
-      FROM deepseek-v3:latest
-      TEMPLATE """{{- range $i, $_ := .Messages }}
-      {{- if eq .Role "user" }}<｜User｜>
-      {{- else if eq .Role "assistant" }}<｜Assistant｜>
-      {{- end }}{{ .Content }}
-      {{- if eq (len (slice $.Messages $i)) 1 }}
-      {{- if eq .Role "user" }}<｜Assistant｜>
+      FROM deepseek-v2:16b-lite-chat-q8_0
+      TEMPLATE """{{- if .System }}{{ .System }}{{ end }}
+      {{- range $i, $_ := .Messages }}
+      {{- $last := eq (len (slice $.Messages $i)) 1}}
+      {{- if eq .Role "user" }}<｜User｜>{{ .Content }}
+      {{- else if eq .Role "assistant" }}<｜Assistant｜>{{ .Content }}{{- if not $last }}<｜end▁of▁sentence｜>{{- end }}
       {{- end }}
-      {{- else if eq .Role "assistant" }}<｜end▁of▁sentence｜><｜begin▁of▁sentence｜>
-      {{- end }}
+      {{- if and $last (ne .Role "assistant") }}<｜Assistant｜>{{- end }}
       {{- end }}
       """
       PARAMETER stop <｜begin▁of▁sentence｜>
       PARAMETER stop <｜end▁of▁sentence｜>
-      PARAMETER stop <｜User｜>
-      PARAMETER stop <｜Assistant｜>
+      PARAMETER stop <| User |>
+      PARAMETER stop <| Assistant |>
       EOF
 
       ollama create custom --file ./custom.modelfile
-      ollama run custom "<|Assistant|>${SYSTEM}<|User|>${PROMPT}<|Assistant|>"
+      ollama run custom "<| Assistant |>${SYSTEM}<| User |>${PROMPT}<| Assistant |>"
 
     depends_on:
       server:
