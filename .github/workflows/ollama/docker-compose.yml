@@ -24,23 +24,12 @@ services:
 
       cat <<'EOF' > ./custom.modelfile
       FROM deepseek-r1:32b
-      TEMPLATE """{{- if .System }}{{ .System }}{{ end }}
-      {{- range $i, $_ := .Messages }}
-      {{- $last := eq (len (slice $.Messages $i)) 1}}
-      {{- if eq .Role "user" }}<｜User｜>{{ .Content }}
-      {{- else if eq .Role "assistant" }}<｜Assistant｜>{{ .Content }}{{- if not $last }}<｜end▁of▁sentence｜>{{- end }}
-      {{- end }}
-      {{- if and $last (ne .Role "assistant") }}<｜Assistant｜>{{- end }}
-      {{- end }}
-      """
-      PARAMETER stop <｜begin▁of▁sentence｜>
-      PARAMETER stop <｜end▁of▁sentence｜>
-      PARAMETER stop <| User |>
-      PARAMETER stop <| Assistant |>
-      EOF
+      PARAMETER temperature 0.7
+      PARAMETER top_p 0.9
+      PARAMETER stop "<|endoftext|>"      EOF
 
       ollama create custom --file ./custom.modelfile
-      ollama run custom "<| Assistant |>${SYSTEM}<| User |>${PROMPT}<| Assistant |>"
+      ollama run custom "<｜Assistant｜>${SYSTEM}<｜User｜>{PROMPT}<｜Assistant｜>"
 
     depends_on:
       server:
