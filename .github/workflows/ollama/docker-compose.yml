@@ -24,7 +24,7 @@ services:
 
       cat <<'EOF' > ./custom.modelfile
       FROM deepseek-v3:latest
-      TEMPLATE "{{- range $i, $_ := .Messages }}
+      TEMPLATE """{{- range $i, $_ := .Messages }}
 {{- if eq .Role "user" }}<｜User｜>
 {{- else if eq .Role "assistant" }}<｜Assistant｜>
 {{- end }}{{ .Content }}
@@ -34,7 +34,7 @@ services:
 {{- else if eq .Role "assistant" }}<｜end▁of▁sentence｜><｜begin▁of▁sentence｜>
 {{- end }}
 {{- end }}
-      "
+      """
       PARAMETER stop <｜begin▁of▁sentence｜>
       PARAMETER stop <｜end▁of▁sentence｜>
       PARAMETER stop <｜User｜>
