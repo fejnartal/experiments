@@ -23,20 +23,26 @@ services:
       set -euxo pipefail
 
       cat <<'EOF' > ./custom.modelfile
-      FROM llama2:latest
-      TEMPLATE "[INST] <<SYS>>{{ .System }}<</SYS>>
-
-      {{ .Prompt }} [/INST]
+      FROM deepseek-v3:latest
+      TEMPLATE "{{- range $i, $_ := .Messages }}
+{{- if eq .Role "user" }}<｜User｜>
+{{- else if eq .Role "assistant" }}<｜Assistant｜>
+{{- end }}{{ .Content }}
+{{- if eq (len (slice $.Messages $i)) 1 }}
+{{- if eq .Role "user" }}<｜Assistant｜>
+{{- end }}
+{{- else if eq .Role "assistant" }}<｜end▁of▁sentence｜><｜begin▁of▁sentence｜>
+{{- end }}
+{{- end }}
       "
-      SYSTEM """${SYSTEM}"""
-      PARAMETER stop [INST]
-      PARAMETER stop [/INST]
-      PARAMETER stop <<SYS>>
-      PARAMETER stop <</SYS>>
+      PARAMETER stop <｜begin▁of▁sentence｜>
+      PARAMETER stop <｜end▁of▁sentence｜>
+      PARAMETER stop <｜User｜>
+      PARAMETER stop <｜Assistant｜>
       EOF
 
       ollama create custom --file ./custom.modelfile
-      ollama run custom "${PROMPT}"
+      ollama run custom "<|Assistant|>${SYSTEM}<|User|>${PROMPT}<|Assistant|>"
 
     depends_on:
       server:
