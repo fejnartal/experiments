@@ -23,7 +23,7 @@ services:
       set -euxo pipefail
 
       cat <<'EOF' > ./custom.modelfile
-      FROM deepseek-r1:32b
+      FROM deepseek-r1:14b
       PARAMETER temperature 0.7
       PARAMETER top_p 0.9
       PARAMETER stop "<|endoftext|>"
